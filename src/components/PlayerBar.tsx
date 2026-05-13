@@ -39,13 +39,13 @@ export default function PlayerBar() {
 
     const ws = WaveSurfer.create({
       container: containerRef.current,
-      height: 36,
-      waveColor: "#3a4150",
-      progressColor: "#ff5e3a",
-      cursorColor: "rgba(255,255,255,0.4)",
+      height: 32,
+      waveColor: "rgba(255,255,255,0.18)",
+      progressColor: "#ff6b3d",
+      cursorColor: "rgba(255,255,255,0.5)",
       barWidth: 2,
-      barRadius: 1,
-      barGap: 1,
+      barRadius: 2,
+      barGap: 2,
       normalize: true,
     });
 
@@ -200,49 +200,51 @@ export default function PlayerBar() {
 
   return (
     <div
-      className="fixed bottom-0 inset-x-0 bg-panel border-t border-edge z-30"
-      style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+      className="fixed inset-x-0 z-30 px-2 sm:px-4 pointer-events-none"
+      style={{ bottom: "max(0.5rem, env(safe-area-inset-bottom))" }}
     >
-      {/* Mobile-only thin progress bar at the top edge */}
-      <MobileProgressBar
-        positionSec={positionSec}
-        durationSec={durationSec}
-        onSeek={seekRatio}
-      />
+      <div className="max-w-5xl mx-auto pointer-events-auto glass-raised rounded-2xl sm:rounded-3xl overflow-hidden">
+        {/* Mobile-only thin progress bar at the top edge */}
+        <MobileProgressBar
+          positionSec={positionSec}
+          durationSec={durationSec}
+          onSeek={seekRatio}
+        />
 
-      <div className="px-3 sm:px-4 py-2.5 sm:py-3">
-        <div className="max-w-7xl mx-auto flex items-center gap-3 sm:gap-4">
-          <div className="min-w-0 flex-1 sm:flex-none sm:w-56">
-            <div className="text-sm text-white truncate">{current.title}</div>
-            <div className="text-xs text-muted truncate">{current.albumTitle}</div>
-            {loadError && (
-              <div className="text-xs text-red-400 truncate flex items-center gap-1" title={loadError}>
-                <AlertTriangle size={12} className="shrink-0" />
-                <span className="truncate">{loadError}</span>
-              </div>
-            )}
+        <div className="px-3 sm:px-5 py-2.5 sm:py-3">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div className="min-w-0 flex-1 sm:flex-none sm:w-56">
+              <div className="text-sm font-medium text-white truncate tracking-tight">{current.title}</div>
+              <div className="text-xs text-white/50 truncate">{current.albumTitle}</div>
+              {loadError && (
+                <div className="text-xs text-red-400 truncate flex items-center gap-1" title={loadError}>
+                  <AlertTriangle size={12} className="shrink-0" />
+                  <span className="truncate">{loadError}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+              <IconBtn onClick={prev} label="Previous"><SkipBack size={18} /></IconBtn>
+              <button
+                onClick={toggle}
+                className="w-11 h-11 sm:w-10 sm:h-10 rounded-full bg-white text-ink flex items-center justify-center shadow-[0_4px_20px_-4px_rgba(255,255,255,0.4)] hover:scale-105 active:scale-95 transition"
+                aria-label={isPlaying ? "Pause" : "Play"}
+              >
+                {isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" className="translate-x-[1px]" />}
+              </button>
+              <IconBtn onClick={next} label="Next"><SkipForward size={18} /></IconBtn>
+            </div>
+
+            {/* Desktop-only waveform + timestamps */}
+            <div className="hidden sm:flex flex-1 items-center gap-3">
+              <span className="text-xs text-white/40 tabular-nums w-10 text-right">{fmtTime(positionSec)}</span>
+              <div ref={containerRef} className="flex-1 cursor-pointer" />
+              <span className="text-xs text-white/40 tabular-nums w-10">{fmtTime(durationSec)}</span>
+            </div>
+
+            <VolumeControl volume={volume} muted={muted} onVolumeChange={setVolume} onToggleMute={toggleMute} />
           </div>
-
-          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-            <IconBtn onClick={prev} label="Previous"><SkipBack size={18} /></IconBtn>
-            <button
-              onClick={toggle}
-              className="w-11 h-11 sm:w-10 sm:h-10 rounded-full bg-white text-ink flex items-center justify-center hover:scale-105 active:scale-95 transition"
-              aria-label={isPlaying ? "Pause" : "Play"}
-            >
-              {isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" className="translate-x-[1px]" />}
-            </button>
-            <IconBtn onClick={next} label="Next"><SkipForward size={18} /></IconBtn>
-          </div>
-
-          {/* Desktop-only waveform + timestamps */}
-          <div className="hidden sm:flex flex-1 items-center gap-3">
-            <span className="text-xs text-muted tabular-nums w-10 text-right">{fmtTime(positionSec)}</span>
-            <div ref={containerRef} className="flex-1 cursor-pointer" />
-            <span className="text-xs text-muted tabular-nums w-10">{fmtTime(durationSec)}</span>
-          </div>
-
-          <VolumeControl volume={volume} muted={muted} onVolumeChange={setVolume} onToggleMute={toggleMute} />
         </div>
       </div>
     </div>
@@ -287,8 +289,11 @@ function MobileProgressBar({
       className="sm:hidden cursor-pointer flex items-center"
       style={{ touchAction: "none", height: 14 }}
     >
-      <div className="w-full h-1.5 bg-edge">
-        <div className="h-full bg-accent" style={{ width: `${ratio * 100}%` }} />
+      <div className="w-full h-1 bg-white/10">
+        <div
+          className="h-full bg-gradient-to-r from-accent to-[#ff8a5a]"
+          style={{ width: `${ratio * 100}%` }}
+        />
       </div>
     </div>
   );
@@ -312,7 +317,7 @@ function VolumeControl({
         onClick={onToggleMute}
         aria-label={muted ? "Unmute" : "Mute"}
         title={muted ? "Unmute" : "Mute"}
-        className="w-8 h-8 rounded-full text-muted hover:text-white hover:bg-panel2 flex items-center justify-center transition"
+        className="w-8 h-8 rounded-full text-white/60 hover:text-white hover:bg-white/10 flex items-center justify-center transition"
       >
         <VolumeIcon level={effective} muted={muted} />
       </button>
@@ -324,9 +329,9 @@ function VolumeControl({
         value={effective}
         onChange={(e) => onVolumeChange(parseFloat(e.target.value))}
         aria-label="Volume"
-        className="flex-1 h-1 accent-accent cursor-pointer"
+        className="flex-1 h-1 cursor-pointer"
         style={{
-          background: `linear-gradient(to right, #ff5e3a 0%, #ff5e3a ${effective * 100}%, #262b33 ${effective * 100}%, #262b33 100%)`,
+          background: `linear-gradient(to right, #ff6b3d 0%, #ff8a5a ${effective * 100}%, rgba(255,255,255,0.12) ${effective * 100}%, rgba(255,255,255,0.12) 100%)`,
           appearance: "none",
           borderRadius: 999,
         }}
@@ -357,7 +362,7 @@ function IconBtn({ children, onClick, label }: { children: React.ReactNode; onCl
     <button
       onClick={onClick}
       aria-label={label}
-      className="w-10 h-10 sm:w-9 sm:h-9 rounded-full text-muted hover:text-white hover:bg-panel2 active:bg-panel2 flex items-center justify-center transition"
+      className="w-10 h-10 sm:w-9 sm:h-9 rounded-full text-white/70 hover:text-white hover:bg-white/10 active:bg-white/15 flex items-center justify-center transition"
     >
       {children}
     </button>

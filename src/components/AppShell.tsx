@@ -9,7 +9,7 @@ export default function AppShell() {
   const hasPlayer = usePlayer((s) => Boolean(s.current));
 
   return (
-    <div className={`min-h-screen flex flex-col ${hasPlayer ? "pb-28 sm:pb-24" : ""}`}>
+    <div className={`min-h-screen flex flex-col ${hasPlayer ? "pb-32 sm:pb-32" : ""}`}>
       <header className="border-b border-edge bg-panel/60 backdrop-blur sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 h-14 flex items-center gap-3 sm:gap-4 justify-between">
           <Link to="/" aria-label="Stagehand home" className="hover:opacity-90 transition shrink-0">
