@@ -20,6 +20,7 @@
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-router-dom": "^7.15.0",
+    "soundtouchjs": "^0.3.0",
     "wavesurfer.js": "^7.12.6",
     "web-audio-beat-detector": "^8.2.36",
     "zustand": "^5.0.13"

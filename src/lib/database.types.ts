@@ -42,6 +42,7 @@ export interface Track {
   play_count: number;
   allow_download: boolean;
   current_version_id: string | null;
+  editor_settings: unknown | null;
   created_at: string;
 }
 

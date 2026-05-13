@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   DndContext,
   KeyboardSensor,
@@ -24,7 +24,8 @@ import { usePlayer } from "../lib/player";
 import { getSignedAudioUrl } from "../lib/audio";
 import AlbumShareModal from "../components/AlbumShareModal";
 import TrackDetailsSheet from "../components/TrackDetailsSheet";
-import { Music, Share2 } from "lucide-react";
+import { Check, MoreHorizontal, Music, Pencil, Share2, Trash2, X } from "lucide-react";
+import { useLibraryStore } from "../lib/library";
 
 const ALBUM_STATUSES: AlbumStatus[] = ["writing", "recording", "mixing", "mastering", "released"];
 const TRACK_STATUSES: TrackStatus[] = ["idea", "demo", "tracking", "mixing", "mastering", "released"];
@@ -47,6 +48,7 @@ const ROW_GRID = "grid-cols-[1fr_108px_28px_28px] sm:grid-cols-[24px_24px_1fr_14
 
 export default function AlbumPage() {
   const { albumId } = useParams<{ albumId: string }>();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [album, setAlbum] = useState<Album | null>(null);
   const [tracks, setTracks] = useState<TrackWithVersion[]>([]);
@@ -57,6 +59,11 @@ export default function AlbumPage() {
   const artFileRef = useRef<HTMLInputElement>(null);
   const [showShare, setShowShare] = useState(false);
   const [detailsTrackId, setDetailsTrackId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const updateLibraryAlbum = useLibraryStore((s) => s.update);
+  const removeLibraryAlbum = useLibraryStore((s) => s.remove);
   const play = usePlayer((s) => s.play);
   const setQueue = usePlayer((s) => s.setQueue);
 
@@ -115,7 +122,48 @@ export default function AlbumPage() {
   const updateAlbumStatus = async (status: AlbumStatus) => {
     if (!album) return;
     setAlbum({ ...album, status });
+    updateLibraryAlbum(album.id, { status });
     await supabase.from("albums").update({ status }).eq("id", album.id);
+  };
+
+  const startTitleEdit = () => {
+    if (!album) return;
+    setTitleDraft(album.title);
+    setEditingTitle(true);
+  };
+
+  const saveTitle = async () => {
+    if (!album) return;
+    const next = titleDraft.trim();
+    setEditingTitle(false);
+    if (!next || next === album.title) return;
+    setAlbum({ ...album, title: next });
+    updateLibraryAlbum(album.id, { title: next });
+    const { error } = await supabase.from("albums").update({ title: next }).eq("id", album.id);
+    if (error) {
+      alert(error.message);
+    }
+  };
+
+  const cancelTitleEdit = () => {
+    setEditingTitle(false);
+    setTitleDraft("");
+  };
+
+  const deleteAlbum = async () => {
+    if (!album) return;
+    const ok = window.confirm(
+      `Delete "${album.title}"? This permanently removes the album, every track in it, and any share links. This cannot be undone.`
+    );
+    if (!ok) return;
+    setMenuOpen(false);
+    const { error } = await supabase.from("albums").delete().eq("id", album.id);
+    if (error) {
+      alert(error.message);
+      return;
+    }
+    removeLibraryAlbum(album.id);
+    navigate("/");
   };
 
   const updateTrackStatus = async (id: string, status: TrackStatus) => {
@@ -267,16 +315,92 @@ export default function AlbumPage() {
         <div className="flex-1 min-w-0 w-full">
           <Link to="/" className="text-xs text-muted hover:text-white">← Library</Link>
           <div className="flex items-start justify-between gap-3">
-            <h1 className="text-2xl sm:text-3xl font-semibold text-white tracking-tight mt-1 break-words">{album.title}</h1>
-            <button
-              onClick={() => setShowShare(true)}
-              className="mt-1 shrink-0 bg-panel2 hover:bg-edge text-white text-sm font-medium px-3 sm:px-4 py-2 rounded-lg border border-edge flex items-center gap-1.5"
-              aria-label="Share album"
-            >
-              <Share2 size={14} />
-              <span className="hidden sm:inline">Share album</span>
-              <span className="sm:hidden">Share</span>
-            </button>
+            {editingTitle ? (
+              <div className="flex items-center gap-2 flex-1 min-w-0 mt-1">
+                <input
+                  autoFocus
+                  value={titleDraft}
+                  onChange={(e) => setTitleDraft(e.target.value)}
+                  maxLength={120}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") saveTitle();
+                    if (e.key === "Escape") cancelTitleEdit();
+                  }}
+                  className="flex-1 min-w-0 bg-ink border border-edge focus:border-accent focus:outline-none rounded-lg px-3 py-1.5 text-2xl sm:text-3xl font-semibold text-white"
+                />
+                <button
+                  onClick={saveTitle}
+                  aria-label="Save title"
+                  className="p-2 rounded-md bg-accent hover:bg-accent/90 text-white"
+                >
+                  <Check size={16} />
+                </button>
+                <button
+                  onClick={cancelTitleEdit}
+                  aria-label="Cancel rename"
+                  className="p-2 rounded-md bg-panel2 hover:bg-edge text-muted hover:text-white"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 flex-1 min-w-0 mt-1 group">
+                <h1 className="text-2xl sm:text-3xl font-semibold text-white tracking-tight break-words min-w-0">
+                  {album.title}
+                </h1>
+                <button
+                  onClick={startTitleEdit}
+                  aria-label="Rename album"
+                  title="Rename album"
+                  className="opacity-0 group-hover:opacity-100 sm:opacity-100 text-muted hover:text-white p-1 transition shrink-0"
+                >
+                  <Pencil size={14} />
+                </button>
+              </div>
+            )}
+            <div className="flex items-center gap-1.5 mt-1 shrink-0">
+              <button
+                onClick={() => setShowShare(true)}
+                className="bg-panel2 hover:bg-edge text-white text-sm font-medium px-3 sm:px-4 py-2 rounded-lg border border-edge flex items-center gap-1.5"
+                aria-label="Share album"
+              >
+                <Share2 size={14} />
+                <span className="hidden sm:inline">Share album</span>
+                <span className="sm:hidden">Share</span>
+              </button>
+              <div className="relative">
+                <button
+                  onClick={() => setMenuOpen((v) => !v)}
+                  aria-label="More album options"
+                  className="w-9 h-9 rounded-lg border border-edge bg-panel2 hover:bg-edge text-muted hover:text-white flex items-center justify-center"
+                >
+                  <MoreHorizontal size={16} />
+                </button>
+                {menuOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-30"
+                      onClick={() => setMenuOpen(false)}
+                      aria-hidden
+                    />
+                    <div className="absolute right-0 mt-1 w-44 bg-panel border border-edge rounded-lg shadow-xl py-1 z-40">
+                      <button
+                        onClick={() => { setMenuOpen(false); startTitleEdit(); }}
+                        className="w-full text-left px-3 py-2 text-sm text-white hover:bg-panel2 flex items-center gap-2"
+                      >
+                        <Pencil size={14} /> Rename
+                      </button>
+                      <button
+                        onClick={deleteAlbum}
+                        className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-panel2 flex items-center gap-2"
+                      >
+                        <Trash2 size={14} /> Delete album
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
           <div className="mt-3 flex items-center gap-2 flex-wrap">
             {ALBUM_STATUSES.map((s) => (
@@ -358,6 +482,11 @@ export default function AlbumPage() {
             onTrackChange={(patch) =>
               setTracks((rows) => rows.map((r) => (r.id === t.id ? { ...r, ...patch } : r)))
             }
+            onRequestReplaceAudio={() => navigate(`/track/${t.id}?action=upload`)}
+            onDeleted={() => {
+              setTracks((rows) => rows.filter((r) => r.id !== t.id));
+              setDetailsTrackId(null);
+            }}
           />
         );
       })()}

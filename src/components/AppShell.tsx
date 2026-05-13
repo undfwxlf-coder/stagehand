@@ -1,13 +1,18 @@
 import { useEffect } from "react";
-import { Link, NavLink, Outlet } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import PlayerBar from "./PlayerBar";
 import Logo from "./Logo";
+import HeaderSearch from "./HeaderSearch";
+import NotificationsBell from "./NotificationsBell";
+import NotificationsBootstrap from "./NotificationsBootstrap";
+import NotificationToasts from "./NotificationToasts";
 import { usePlayer } from "../lib/player";
 import { useProfileStore } from "../lib/profile";
 
 export default function AppShell() {
   const { user } = useAuth();
+  const location = useLocation();
   const hasPlayer = usePlayer((s) => Boolean(s.current));
   const profile = useProfileStore((s) => s.profile);
   const loadProfile = useProfileStore((s) => s.load);
@@ -38,6 +43,8 @@ export default function AppShell() {
             <NavTab to="/saved">Saved</NavTab>
           </nav>
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            <HeaderSearch />
+            <NotificationsBell />
             <Link
               to="/profile"
               aria-label="Your profile"
@@ -54,7 +61,9 @@ export default function AppShell() {
         </div>
       </header>
       <main className="flex-1">
-        <Outlet />
+        <div key={location.pathname} className="animate-[pagein_180ms_ease-out]">
+          <Outlet />
+        </div>
       </main>
       <footer className="border-t border-edge mt-12 py-6 px-4 sm:px-6">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs text-muted">
@@ -66,6 +75,8 @@ export default function AppShell() {
         </div>
       </footer>
       <PlayerBar />
+      <NotificationsBootstrap />
+      <NotificationToasts />
     </div>
   );
 }

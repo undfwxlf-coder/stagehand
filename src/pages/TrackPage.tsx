@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import type { Album, Track, Version } from "../lib/database.types";
@@ -7,10 +7,11 @@ import { downloadAudio, getSignedAudioUrl, inferAudioMeta, inferVersionLabel, sa
 import { decodeAudio, detectBpm, detectKey, peaksFromBuffer } from "../lib/audioAnalysis";
 import { usePlayer } from "../lib/player";
 import ShareModal from "../components/ShareModal";
-import { Download, Play, Share2, Sparkles, Trash2 } from "lucide-react";
+import { Download, Play, Share2, SlidersHorizontal, Sparkles, Trash2 } from "lucide-react";
 
 export default function TrackPage() {
   const { trackId } = useParams<{ trackId: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const [track, setTrack] = useState<Track | null>(null);
   const [album, setAlbum] = useState<Album | null>(null);
@@ -24,6 +25,18 @@ export default function TrackPage() {
   const [redetecting, setRedetecting] = useState(false);
   const [redetectStatus, setRedetectStatus] = useState<string | null>(null);
   const [redetectErr, setRedetectErr] = useState<string | null>(null);
+
+  // Auto-trigger the file picker when arriving with ?action=upload (from "Replace audio" sheet row).
+  useEffect(() => {
+    if (searchParams.get("action") !== "upload") return;
+    const timer = setTimeout(() => {
+      fileRef.current?.click();
+      // Strip the query so refreshes don't re-open the picker.
+      searchParams.delete("action");
+      setSearchParams(searchParams, { replace: true });
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     if (!trackId) return;
@@ -229,7 +242,18 @@ export default function TrackPage() {
       <Link to={`/album/${album.id}`} className="text-xs text-muted hover:text-white">
         ← {album.title}
       </Link>
-      <h1 className="text-2xl sm:text-3xl font-semibold text-white tracking-tight mt-2 mb-4 break-words">{track.title}</h1>
+      <div className="flex items-start justify-between gap-3 mt-2 mb-4">
+        <h1 className="text-2xl sm:text-3xl font-semibold text-white tracking-tight break-words flex-1 min-w-0">{track.title}</h1>
+        <Link
+          to={`/edit/${track.id}`}
+          aria-label="Edit track"
+          title="Edit track"
+          className="shrink-0 inline-flex items-center gap-1.5 bg-panel border border-edge hover:border-accent/60 text-white text-sm px-3 py-2 rounded-lg transition mt-1"
+        >
+          <SlidersHorizontal size={14} />
+          <span>Edit</span>
+        </Link>
+      </div>
 
       <div className="flex items-center gap-3 mb-6 flex-wrap">
         <TrackMetaStrip

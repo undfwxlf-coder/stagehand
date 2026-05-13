@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
+import { useLibraryStore } from "../lib/library";
 import type { Album, AlbumStatus } from "../lib/database.types";
 import { Music } from "lucide-react";
 
@@ -15,26 +16,21 @@ const STATUS_COLORS: Record<AlbumStatus, string> = {
 
 export default function LibraryPage() {
   const { user } = useAuth();
-  const [albums, setAlbums] = useState<Album[]>([]);
-  const [loading, setLoading] = useState(true);
+  const albums = useLibraryStore((s) => s.albums);
+  const loaded = useLibraryStore((s) => s.loaded);
+  const refreshing = useLibraryStore((s) => s.refreshing);
+  const loadLibrary = useLibraryStore((s) => s.load);
+  const prependAlbum = useLibraryStore((s) => s.prepend);
   const [showNew, setShowNew] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [creating, setCreating] = useState(false);
 
+  // Hydrate on first mount; on subsequent mounts run a quiet background refresh.
   useEffect(() => {
-    let cancel = false;
-    (async () => {
-      const { data, error } = await supabase
-        .from("albums")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (!cancel && !error) setAlbums(data ?? []);
-      if (!cancel) setLoading(false);
-    })();
-    return () => {
-      cancel = true;
-    };
-  }, []);
+    loadLibrary();
+  }, [loadLibrary]);
+
+  const loading = !loaded && refreshing;
 
   const createAlbum = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,7 +46,7 @@ export default function LibraryPage() {
       alert(error.message);
       return;
     }
-    setAlbums((a) => [data as Album, ...a]);
+    prependAlbum(data as Album);
     setNewTitle("");
     setShowNew(false);
   };
@@ -107,7 +103,7 @@ export default function LibraryPage() {
             <Link
               key={a.id}
               to={`/album/${a.id}`}
-              className="group bg-panel border border-edge rounded-xl overflow-hidden hover:border-accent/60 transition"
+              className="group bg-panel border border-edge rounded-xl overflow-hidden hover:border-accent/60 transition-[transform,border-color] duration-150 ease-out hover:-translate-y-0.5 active:scale-[0.97] active:duration-100"
             >
               <div className="aspect-square bg-gradient-to-br from-panel2 to-ink flex items-center justify-center text-edge group-hover:text-muted transition">
                 {a.artwork_url ? (

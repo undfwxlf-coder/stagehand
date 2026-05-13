@@ -1,6 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Camera, Check, Pencil, X } from "lucide-react";
+import {
+  ArrowLeft,
+  Camera,
+  Check,
+  ChevronRight,
+  FileText,
+  Mail,
+  MessageSquare,
+  Pencil,
+  Share2,
+  ShieldCheck,
+  ShoppingBag,
+  X,
+} from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import {
@@ -10,6 +23,12 @@ import {
   useProfileStore,
 } from "../lib/profile";
 import type { Profile } from "../lib/database.types";
+
+// TODO: replace with the real destinations.
+const CONTACT_EMAIL = "stagehand.studio@gmail.com";
+const INSTAGRAM_URL = "https://instagram.com/stagehand.studio";
+const TERMS_URL = ""; // leave empty until the page exists — row renders as "Coming soon"
+const PRIVACY_URL = ""; // ditto
 
 export default function ProfilePage() {
   const { user, signOut } = useAuth();
@@ -23,7 +42,33 @@ export default function ProfilePage() {
   const [savingName, setSavingName] = useState(false);
 
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [copied, setCopied] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const tellAFriend = async () => {
+    const url = window.location.origin;
+    const shareData = {
+      title: "Stagehand",
+      text: "Check out Stagehand — a private home for unreleased music.",
+      url,
+    };
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      try {
+        await navigator.share(shareData);
+        return;
+      } catch {
+        // User dismissed the share sheet — fall through to no-op.
+        return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      window.prompt("Copy this link:", url);
+    }
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -220,12 +265,70 @@ export default function ProfilePage() {
         {loading && <p className="mt-4 text-xs text-muted">Loading…</p>}
       </div>
 
-      <div className="mt-6 bg-panel border border-edge rounded-2xl divide-y divide-edge">
-        <Row label="Email" value={user.email ?? ""} />
+      <div className="mt-6 bg-panel border border-edge rounded-2xl divide-y divide-edge overflow-hidden">
+        <ValueRow label="Email" value={user.email ?? ""} />
+        <ActionRow
+          icon={<ShoppingBag size={16} />}
+          label="Purchases"
+          soon
+        />
+      </div>
+
+      <SectionLabel>Support</SectionLabel>
+      <div className="bg-panel border border-edge rounded-2xl divide-y divide-edge overflow-hidden">
+        <ActionRow
+          icon={<Share2 size={16} />}
+          label="Tell a friend"
+          onClick={tellAFriend}
+          trailing={
+            copied ? (
+              <span className="text-[10px] uppercase tracking-wider text-accent bg-accent/10 px-2 py-0.5 rounded">
+                Copied!
+              </span>
+            ) : undefined
+          }
+        />
+        <ActionRow
+          icon={<MessageSquare size={16} />}
+          label="Send feedback"
+          href={`mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent("[Stagehand feedback] ")}&body=${encodeURIComponent("What's working / what's broken / what you wish existed:\n\n")}`}
+        />
+        <ActionRow
+          icon={<Mail size={16} />}
+          label="Contact us"
+          href={`mailto:${CONTACT_EMAIL}`}
+        />
+        <ActionRow
+          icon={<InstagramIcon />}
+          label="Stagehand on Instagram"
+          href={INSTAGRAM_URL}
+          external
+        />
+      </div>
+
+      <SectionLabel>Legal</SectionLabel>
+      <div className="bg-panel border border-edge rounded-2xl divide-y divide-edge overflow-hidden">
+        <ActionRow
+          icon={<FileText size={16} />}
+          label="Terms of Service"
+          href={TERMS_URL || undefined}
+          external={Boolean(TERMS_URL)}
+          soon={!TERMS_URL}
+        />
+        <ActionRow
+          icon={<ShieldCheck size={16} />}
+          label="Privacy Policy"
+          href={PRIVACY_URL || undefined}
+          external={Boolean(PRIVACY_URL)}
+          soon={!PRIVACY_URL}
+        />
+      </div>
+
+      <div className="mt-6 bg-panel border border-edge rounded-2xl overflow-hidden">
         <button
           type="button"
           onClick={signOut}
-          className="w-full text-left px-5 py-4 text-sm text-red-400 hover:bg-panel2 transition rounded-b-2xl"
+          className="w-full text-left px-5 py-4 text-sm text-red-400 hover:bg-panel2 transition"
         >
           Sign out
         </button>
@@ -234,11 +337,98 @@ export default function ProfilePage() {
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function InstagramIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <rect x="3" y="3" width="18" height="18" rx="5" />
+      <circle cx="12" cy="12" r="4" />
+      <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <h2 className="mt-6 mb-2 px-1 text-[11px] uppercase tracking-wider text-muted">
+      {children}
+    </h2>
+  );
+}
+
+function ValueRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="px-5 py-4 flex items-center justify-between gap-4">
       <span className="text-sm text-muted">{label}</span>
       <span className="text-sm text-white truncate">{value}</span>
     </div>
+  );
+}
+
+interface ActionRowProps {
+  icon: React.ReactNode;
+  label: string;
+  href?: string;
+  external?: boolean;
+  soon?: boolean;
+  onClick?: () => void;
+  trailing?: React.ReactNode;
+}
+
+function ActionRow({ icon, label, href, external, soon, onClick, trailing }: ActionRowProps) {
+  const inner = (
+    <div className="flex items-center gap-3 px-5 py-4">
+      <span className="text-muted shrink-0">{icon}</span>
+      <span className="text-sm text-white flex-1 truncate">{label}</span>
+      {trailing ? (
+        trailing
+      ) : soon ? (
+        <span className="text-[10px] uppercase tracking-wider text-muted bg-panel2 px-2 py-0.5 rounded">
+          Soon
+        </span>
+      ) : (
+        <ChevronRight size={16} className="text-muted shrink-0" />
+      )}
+    </div>
+  );
+
+  const className = `block w-full text-left transition ${
+    soon ? "opacity-60 cursor-not-allowed" : "hover:bg-panel2"
+  }`;
+
+  if (soon || (!href && !onClick)) {
+    return (
+      <div aria-disabled className={className}>
+        {inner}
+      </div>
+    );
+  }
+
+  if (href) {
+    return (
+      <a
+        href={href}
+        target={external ? "_blank" : undefined}
+        rel={external ? "noopener noreferrer" : undefined}
+        className={className}
+      >
+        {inner}
+      </a>
+    );
+  }
+
+  return (
+    <button type="button" onClick={onClick} className={className}>
+      {inner}
+    </button>
   );
 }

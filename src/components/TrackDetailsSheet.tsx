@@ -19,6 +19,7 @@ interface TrackDetailsSheetProps {
   onClose: () => void;
   onTrackChange: (patch: Partial<Track>) => void;
   onRequestReplaceAudio?: () => void;
+  onDeleted?: () => void;
 }
 
 export default function TrackDetailsSheet({
@@ -31,6 +32,7 @@ export default function TrackDetailsSheet({
   onClose,
   onTrackChange,
   onRequestReplaceAudio,
+  onDeleted,
 }: TrackDetailsSheetProps) {
   const play = usePlayer((s) => s.play);
   const setQueue = usePlayer((s) => s.setQueue);
@@ -175,6 +177,20 @@ export default function TrackDetailsSheet({
 
   const openManageSharing = () => setShareOpen(true);
 
+  const deleteTrack = async () => {
+    const ok = window.confirm(
+      `Delete "${track.title}"? This permanently removes the track, every version, and any share links. This cannot be undone.`
+    );
+    if (!ok) return;
+    const { error } = await supabase.from("tracks").delete().eq("id", track.id);
+    if (error) {
+      showToast(error.message);
+      return;
+    }
+    onDeleted?.();
+    onClose();
+  };
+
   const sheetRef = useRef<HTMLDivElement>(null);
 
   return (
@@ -293,6 +309,12 @@ export default function TrackDetailsSheet({
                   disabled={!version || downloadBusy}
                   onClick={onExportAudio}
                 />
+                <ActionRow
+                  icon={<TrashIcon />}
+                  label="Delete track"
+                  onClick={deleteTrack}
+                  destructive
+                />
               </div>
 
               {activeLink && (
@@ -359,22 +381,26 @@ function ActionRow({
   label,
   onClick,
   disabled,
+  destructive,
 }: {
   icon: React.ReactNode;
   label: string;
   onClick: () => void;
   disabled?: boolean;
+  destructive?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="w-full px-4 py-3.5 flex items-center gap-3 text-left text-white hover:bg-edge/40 active:bg-edge/60 disabled:opacity-40 disabled:cursor-not-allowed transition"
+      className={`w-full px-4 py-3.5 flex items-center gap-3 text-left hover:bg-edge/40 active:bg-edge/60 disabled:opacity-40 disabled:cursor-not-allowed transition ${
+        destructive ? "text-red-400" : "text-white"
+      }`}
     >
-      <span className="w-6 h-6 flex items-center justify-center text-muted shrink-0">{icon}</span>
+      <span className={`w-6 h-6 flex items-center justify-center shrink-0 ${destructive ? "text-red-400" : "text-muted"}`}>{icon}</span>
       <span className="text-sm flex-1">{label}</span>
-      <ChevronIcon />
+      {!destructive && <ChevronIcon />}
     </button>
   );
 }
@@ -461,6 +487,14 @@ function QueueIcon() {
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
       <path d="M2.5 4.5h8M2.5 8h8M2.5 11.5h5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
       <path d="M11.5 10.5v4l3-2-3-2z" fill="currentColor" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M3 4h10M5.5 4V2.5h5V4M4 4l.75 9a1 1 0 001 .9h4.5a1 1 0 001-.9L12 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

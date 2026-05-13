@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./lib/auth";
 import AuthPage from "./pages/AuthPage";
@@ -9,6 +10,8 @@ import ListenPage from "./pages/ListenPage";
 import ProfilePage from "./pages/ProfilePage";
 import AppShell from "./components/AppShell";
 
+const EditTrackPage = lazy(() => import("./pages/EditTrackPage"));
+
 export default function App() {
   return (
     <AuthProvider>
@@ -17,6 +20,14 @@ export default function App() {
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/listen/:slug" element={<ListenPage />} />
           <Route element={<RequireAuth />}>
+            <Route
+              path="edit/:trackId"
+              element={
+                <Suspense fallback={<div className="fixed inset-0 bg-ink flex items-center justify-center text-muted text-sm">Loading editor…</div>}>
+                  <EditTrackPage />
+                </Suspense>
+              }
+            />
             <Route element={<AppShell />}>
               <Route index element={<LibraryPage />} />
               <Route path="album/:albumId" element={<AlbumPage />} />
