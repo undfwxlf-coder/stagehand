@@ -196,6 +196,8 @@ export default function AlbumPage() {
   const playTrack = async (t: TrackWithVersion) => {
     if (!t.version || !album) return;
     const url = await getSignedAudioUrl(t.version.storage_path);
+    const artistName = (user?.user_metadata?.artist_name as string | undefined) ?? null;
+    const artworkUrl = album.artwork_url ?? null;
     setQueue(
       tracks
         .filter((tr) => tr.version)
@@ -207,6 +209,8 @@ export default function AlbumPage() {
           audioUrl: "",
           peaks: tr.version!.peaks,
           duration: tr.version!.duration_sec,
+          artistName,
+          artworkUrl,
         }))
     );
     play({
@@ -217,6 +221,8 @@ export default function AlbumPage() {
       audioUrl: url,
       peaks: t.version.peaks,
       duration: t.version.duration_sec,
+      artistName,
+      artworkUrl,
     });
   };
 

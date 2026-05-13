@@ -75,34 +75,42 @@ export default function SavedPage() {
         trackId: r.item.track_id,
         versionId: r.item.version_id!,
         title: r.item.track_title,
-        albumTitle: `${r.item.artist_name ?? "Unknown"} · ${r.item.album_title}`,
+        albumTitle: r.item.album_title,
         audioUrl: "",
         peaks: r.item.version_peaks,
         duration: r.item.version_duration_sec,
+        artistName: r.item.artist_name ?? null,
+        artworkUrl: r.item.album_artwork_url ?? null,
       }))
     );
     play({
       trackId: item.track_id,
       versionId: item.version_id,
       title: item.track_title,
-      albumTitle: `${item.artist_name ?? "Unknown"} · ${item.album_title}`,
+      albumTitle: item.album_title,
       audioUrl: item.share_signed_url,
       peaks: item.version_peaks,
       duration: item.version_duration_sec,
+      artistName: item.artist_name ?? null,
+      artworkUrl: item.album_artwork_url ?? null,
     });
   };
 
   const playAlbumFirstTrack = (album: SavedAlbumItem) => {
     if (!album.share_payload || album.share_payload.length === 0) return;
+    const artistName = album.artist_name ?? null;
+    const artworkUrl = album.album_artwork_url ?? null;
     setQueue(
       album.share_payload.map((t) => ({
         trackId: t.track_id,
         versionId: t.version_id,
         title: t.title,
-        albumTitle: `${album.artist_name ?? "Unknown"} · ${album.album_title}`,
+        albumTitle: album.album_title,
         audioUrl: "",
         peaks: t.peaks,
         duration: t.duration_sec,
+        artistName,
+        artworkUrl,
       }))
     );
     const first = album.share_payload[0];
@@ -110,10 +118,12 @@ export default function SavedPage() {
       trackId: first.track_id,
       versionId: first.version_id,
       title: first.title,
-      albumTitle: `${album.artist_name ?? "Unknown"} · ${album.album_title}`,
+      albumTitle: album.album_title,
       audioUrl: first.signed_url,
       peaks: first.peaks,
       duration: first.duration_sec,
+      artistName,
+      artworkUrl,
     });
   };
 

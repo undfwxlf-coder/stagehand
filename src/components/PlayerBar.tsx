@@ -125,6 +125,71 @@ export default function PlayerBar() {
     };
   }, []);
 
+  // MediaSession: title/artist/album/artwork shown in iOS Control Center & Android lock screen.
+  useEffect(() => {
+    if (!("mediaSession" in navigator) || !current) return;
+    const artwork = current.artworkUrl
+      ? [{ src: current.artworkUrl, sizes: "512x512", type: "image/jpeg" }]
+      : [
+          { src: "/logo-192.png", sizes: "192x192", type: "image/png" },
+          { src: "/logo-512.png", sizes: "512x512", type: "image/png" },
+          { src: "/logo-1024.png", sizes: "1024x1024", type: "image/png" },
+        ];
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: current.title,
+      artist: current.artistName ?? "Stagehand",
+      album: current.albumTitle,
+      artwork,
+    });
+  }, [current]);
+
+  // MediaSession action handlers — iOS Control Center play/pause/skip/seek.
+  useEffect(() => {
+    if (!("mediaSession" in navigator)) return;
+    const ms = navigator.mediaSession;
+    ms.setActionHandler("play", () => setPlaying(true));
+    ms.setActionHandler("pause", () => setPlaying(false));
+    ms.setActionHandler("nexttrack", () => next());
+    ms.setActionHandler("previoustrack", () => prev());
+    try {
+      ms.setActionHandler("seekto", (details) => {
+        if (details.seekTime != null && wsRef.current) {
+          wsRef.current.setTime(details.seekTime);
+        }
+      });
+    } catch {
+      // Older browsers don't support seekto
+    }
+    return () => {
+      ms.setActionHandler("play", null);
+      ms.setActionHandler("pause", null);
+      ms.setActionHandler("nexttrack", null);
+      ms.setActionHandler("previoustrack", null);
+      try { ms.setActionHandler("seekto", null); } catch { /* ignore */ }
+    };
+  }, [next, prev, setPlaying]);
+
+  // Reflect play state to MediaSession.
+  useEffect(() => {
+    if (!("mediaSession" in navigator)) return;
+    navigator.mediaSession.playbackState = isPlaying ? "playing" : "paused";
+  }, [isPlaying]);
+
+  // Position state so iOS shows accurate scrubber + elapsed time.
+  useEffect(() => {
+    if (!("mediaSession" in navigator) || !navigator.mediaSession.setPositionState) return;
+    if (!isFinite(durationSec) || durationSec <= 0) return;
+    try {
+      navigator.mediaSession.setPositionState({
+        duration: durationSec,
+        position: Math.min(Math.max(0, positionSec), durationSec),
+        playbackRate: 1,
+      });
+    } catch {
+      // ignore
+    }
+  }, [positionSec, durationSec]);
+
   if (!current) return null;
 
   const seekRatio = (ratio: number) => {

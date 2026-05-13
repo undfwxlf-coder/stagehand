@@ -8,6 +8,8 @@ export interface PlayerTrack {
   audioUrl: string;
   peaks?: number[] | null;
   duration?: number | null;
+  artistName?: string | null;
+  artworkUrl?: string | null;
 }
 
 interface PlayerState {
