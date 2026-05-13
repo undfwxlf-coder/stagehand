@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import type { Album, AlbumStatus } from "../lib/database.types";
+import { Music } from "lucide-react";
 
 const STATUS_COLORS: Record<AlbumStatus, string> = {
   writing: "bg-slate-500/20 text-slate-300",
@@ -108,11 +109,11 @@ export default function LibraryPage() {
               to={`/album/${a.id}`}
               className="group bg-panel border border-edge rounded-xl overflow-hidden hover:border-accent/60 transition"
             >
-              <div className="aspect-square bg-gradient-to-br from-panel2 to-ink flex items-center justify-center text-4xl text-edge group-hover:text-muted transition">
+              <div className="aspect-square bg-gradient-to-br from-panel2 to-ink flex items-center justify-center text-edge group-hover:text-muted transition">
                 {a.artwork_url ? (
                   <img src={a.artwork_url} alt="" className="w-full h-full object-cover" />
                 ) : (
-                  "♪"
+                  <Music size={40} strokeWidth={1.2} />
                 )}
               </div>
               <div className="p-3">
@@ -150,7 +151,7 @@ function SkeletonGrid() {
 function EmptyState({ onCreate }: { onCreate: () => void }) {
   return (
     <div className="bg-panel border border-dashed border-edge rounded-2xl py-20 text-center">
-      <div className="text-5xl mb-3">♪</div>
+      <Music size={48} strokeWidth={1.2} className="mx-auto mb-3 text-muted" />
       <h2 className="text-lg text-white">No albums yet</h2>
       <p className="text-sm text-muted mt-1 mb-5">Start a new project to track your songs and stash demos.</p>
       <button

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import WaveSurfer from "wavesurfer.js";
+import { Pause, Play, SkipBack, SkipForward, AlertTriangle } from "lucide-react";
 import { usePlayer } from "../lib/player";
 import { fmtTime } from "../lib/audio";
 import { recordPlay } from "../lib/plays";
@@ -214,19 +215,24 @@ export default function PlayerBar() {
           <div className="min-w-0 flex-1 sm:flex-none sm:w-56">
             <div className="text-sm text-white truncate">{current.title}</div>
             <div className="text-xs text-muted truncate">{current.albumTitle}</div>
-            {loadError && <div className="text-xs text-red-400 truncate" title={loadError}>⚠ {loadError}</div>}
+            {loadError && (
+              <div className="text-xs text-red-400 truncate flex items-center gap-1" title={loadError}>
+                <AlertTriangle size={12} className="shrink-0" />
+                <span className="truncate">{loadError}</span>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-            <IconBtn onClick={prev} label="Previous">⏮</IconBtn>
+            <IconBtn onClick={prev} label="Previous"><SkipBack size={18} /></IconBtn>
             <button
               onClick={toggle}
               className="w-11 h-11 sm:w-10 sm:h-10 rounded-full bg-white text-ink flex items-center justify-center hover:scale-105 active:scale-95 transition"
               aria-label={isPlaying ? "Pause" : "Play"}
             >
-              {isPlaying ? "⏸" : "▶"}
+              {isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" className="translate-x-[1px]" />}
             </button>
-            <IconBtn onClick={next} label="Next">⏭</IconBtn>
+            <IconBtn onClick={next} label="Next"><SkipForward size={18} /></IconBtn>
           </div>
 
           {/* Desktop-only waveform + timestamps */}

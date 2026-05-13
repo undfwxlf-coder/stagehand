@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { X } from "lucide-react";
 import type { Track, Version, ShareLink, ShareInvite, ShareVisibility } from "../lib/database.types";
 import {
   SHARE_DURATIONS,
@@ -93,7 +94,7 @@ export default function ShareModal({
 
   return (
     <div
-      className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
+      className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
       onClick={onClose}
     >
       <div
@@ -106,7 +107,7 @@ export default function ShareModal({
             <div className="text-white font-medium truncate">{track.title}</div>
             <div className="text-xs text-muted">Sharing version: {version.label}</div>
           </div>
-          <button onClick={onClose} aria-label="Close" className="text-muted hover:text-white text-xl px-2 py-1 -m-1">×</button>
+          <button onClick={onClose} aria-label="Close" className="text-muted hover:text-white px-2 py-1 -m-1 flex items-center justify-center"><X size={18} /></button>
         </div>
 
         <div className="px-5 py-4 border-b border-edge shrink-0 space-y-3">

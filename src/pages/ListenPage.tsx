@@ -9,6 +9,7 @@ import { isAlbumSaved, isTrackSaved, saveAlbum, saveTrack, unsaveAlbum, unsaveTr
 import type { AlbumShareTrackPayload } from "../lib/share";
 import { useAuth } from "../lib/auth";
 import Logo from "../components/Logo";
+import { Download, Heart, Lock, Music, Pause, Play } from "lucide-react";
 
 interface ResolvedTrackShare {
   type: "track";
@@ -304,10 +305,10 @@ export default function ListenPage() {
               <div className="flex items-center gap-4">
                 <button
                   onClick={toggle}
-                  className="w-14 h-14 rounded-full bg-white text-ink flex items-center justify-center text-xl hover:scale-105 active:scale-95 transition shrink-0"
+                  className="w-14 h-14 rounded-full bg-white text-ink flex items-center justify-center hover:scale-105 active:scale-95 transition shrink-0"
                   aria-label={isPlaying ? "Pause" : "Play"}
                 >
-                  {isPlaying ? "⏸" : "▶"}
+                  {isPlaying ? <Pause size={22} fill="currentColor" /> : <Play size={22} fill="currentColor" className="translate-x-[1px]" />}
                 </button>
                 <div className="flex-1 flex items-center justify-between text-xs text-muted tabular-nums">
                   <span>{fmtTime(position)}</span>
@@ -319,9 +320,10 @@ export default function ListenPage() {
                     disabled={downloading}
                     aria-label="Download audio"
                     title="Download audio file"
-                    className="shrink-0 px-3 sm:px-4 py-2 rounded-lg text-sm font-medium border bg-panel2 border-edge text-white hover:border-accent/60 transition disabled:opacity-60"
+                    className="shrink-0 px-3 sm:px-4 py-2 rounded-lg text-sm font-medium border bg-panel2 border-edge text-white hover:border-accent/60 transition disabled:opacity-60 flex items-center gap-1.5"
                   >
-                    {downloading ? "…" : "⬇ Download"}
+                    <Download size={14} />
+                    {downloading ? "…" : "Download"}
                   </button>
                 )}
                 {user && (
@@ -330,13 +332,14 @@ export default function ListenPage() {
                     disabled={savingState}
                     aria-label={saved ? "Unsave track" : "Save track"}
                     title={saved ? "Saved — click to remove" : "Save to your library"}
-                    className={`shrink-0 px-3 sm:px-4 py-2 rounded-lg text-sm font-medium border transition disabled:opacity-60 ${
+                    className={`shrink-0 px-3 sm:px-4 py-2 rounded-lg text-sm font-medium border transition disabled:opacity-60 flex items-center gap-1.5 ${
                       saved
                         ? "bg-accent/15 border-accent/40 text-accent"
                         : "bg-panel2 border-edge text-white hover:border-accent/60"
                     }`}
                   >
-                    {savingState ? "…" : saved ? "♥ Saved" : "♡ Save"}
+                    <Heart size={14} fill={saved ? "currentColor" : "none"} />
+                    {savingState ? "…" : saved ? "Saved" : "Save"}
                   </button>
                 )}
               </div>
@@ -361,11 +364,11 @@ export default function ListenPage() {
         ) : data?.type === "album" ? (
           <div className="max-w-3xl w-full">
             <div className="flex flex-col sm:flex-row gap-5 sm:gap-6 items-center sm:items-start mb-6">
-              <div className="w-40 h-40 sm:w-48 sm:h-48 rounded-2xl bg-gradient-to-br from-panel2 to-ink border border-edge flex items-center justify-center text-6xl text-edge shrink-0 overflow-hidden">
+              <div className="w-40 h-40 sm:w-48 sm:h-48 rounded-2xl bg-gradient-to-br from-panel2 to-ink border border-edge flex items-center justify-center text-edge shrink-0 overflow-hidden">
                 {data.album.artwork_url ? (
                   <img src={data.album.artwork_url} alt="" className="w-full h-full object-cover" />
                 ) : (
-                  "♪"
+                  <Music size={56} strokeWidth={1.2} />
                 )}
               </div>
               <div className="flex-1 min-w-0 w-full text-center sm:text-left">
@@ -378,13 +381,14 @@ export default function ListenPage() {
                   <button
                     onClick={onToggleSave}
                     disabled={savingState}
-                    className={`mt-4 px-4 py-2 rounded-lg text-sm font-medium border transition disabled:opacity-60 ${
+                    className={`mt-4 px-4 py-2 rounded-lg text-sm font-medium border transition disabled:opacity-60 inline-flex items-center gap-1.5 ${
                       saved
                         ? "bg-accent/15 border-accent/40 text-accent"
                         : "bg-panel2 border-edge text-white hover:border-accent/60"
                     }`}
                   >
-                    {savingState ? "…" : saved ? "♥ Saved album" : "♡ Save album"}
+                    <Heart size={14} fill={saved ? "currentColor" : "none"} />
+                    {savingState ? "…" : saved ? "Saved album" : "Save album"}
                   </button>
                 )}
               </div>
@@ -396,10 +400,10 @@ export default function ListenPage() {
                 <div className="flex items-center gap-3 mb-4">
                   <button
                     onClick={toggle}
-                    className="w-12 h-12 rounded-full bg-white text-ink flex items-center justify-center text-lg hover:scale-105 active:scale-95 transition shrink-0"
+                    className="w-12 h-12 rounded-full bg-white text-ink flex items-center justify-center hover:scale-105 active:scale-95 transition shrink-0"
                     aria-label={isPlaying ? "Pause" : "Play"}
                   >
-                    {isPlaying ? "⏸" : "▶"}
+                    {isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" className="translate-x-[1px]" />}
                   </button>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm text-white truncate">{activeAlbumTrack.title}</div>
@@ -427,7 +431,7 @@ export default function ListenPage() {
                         className="w-7 h-7 rounded-full text-muted hover:text-white hover:bg-ink flex items-center justify-center shrink-0"
                         aria-label="Play"
                       >
-                        {isActive && isPlaying ? "⏸" : "▶"}
+                        {isActive && isPlaying ? <Pause size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" className="translate-x-[1px]" />}
                       </button>
                       <span className="text-muted text-xs tabular-nums w-5 shrink-0">{i + 1}</span>
                       <div className="flex-1 min-w-0">
@@ -485,7 +489,7 @@ function ErrorCard({
 }) {
   return (
     <div className="max-w-md w-full bg-panel border border-edge rounded-2xl p-8 text-center">
-      <div className="text-3xl mb-3">🔒</div>
+      <Lock size={28} strokeWidth={1.5} className="mx-auto mb-3 text-muted" />
       <h1 className="text-lg text-white mb-2">Link unavailable</h1>
       <p className="text-sm text-muted">{message}</p>
       {cta && (

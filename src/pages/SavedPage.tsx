@@ -11,6 +11,7 @@ import {
 import { usePlayer } from "../lib/player";
 import { supabase } from "../lib/supabase";
 import { downloadAudio, safeFilename } from "../lib/audio";
+import { Download, Heart, Music, Play, X } from "lucide-react";
 
 export default function SavedPage() {
   const [items, setItems] = useState<MySaveRow[]>([]);
@@ -153,7 +154,7 @@ export default function SavedPage() {
 
       {items.length === 0 ? (
         <div className="bg-panel border border-dashed border-edge rounded-2xl py-16 text-center">
-          <div className="text-4xl mb-3">♡</div>
+          <Heart size={36} strokeWidth={1.3} className="mx-auto mb-3 text-muted" />
           <h2 className="text-lg text-white">Nothing saved yet</h2>
           <p className="text-sm text-muted mt-1 max-w-md mx-auto">
             When another artist shares a track or album with you and you click <span className="text-white">Save</span>, it'll appear here.
@@ -229,8 +230,8 @@ function SavedTrackRow({
   const reason = !accessible ? statusReason(item) ?? "No longer available" : null;
   return (
     <li className="px-3 sm:px-5 py-3 flex items-center gap-3 sm:gap-4">
-      <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg overflow-hidden bg-gradient-to-br from-panel2 to-ink border border-edge flex items-center justify-center text-xl text-edge shrink-0">
-        {item.album_artwork_url ? <img src={item.album_artwork_url} alt="" className="w-full h-full object-cover" /> : "♪"}
+      <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg overflow-hidden bg-gradient-to-br from-panel2 to-ink border border-edge flex items-center justify-center text-edge shrink-0">
+        {item.album_artwork_url ? <img src={item.album_artwork_url} alt="" className="w-full h-full object-cover" /> : <Music size={20} strokeWidth={1.4} />}
       </div>
       <div className="flex-1 min-w-0">
         <div className="text-sm text-white truncate">{item.track_title}</div>
@@ -242,7 +243,9 @@ function SavedTrackRow({
         {reason && <div className="text-xs text-amber-400/80 mt-0.5">{reason}</div>}
       </div>
       {accessible ? (
-        <button onClick={onPlay} className="w-9 h-9 rounded-full bg-panel2 hover:bg-accent text-white flex items-center justify-center shrink-0" aria-label="Play">▶</button>
+        <button onClick={onPlay} className="w-9 h-9 rounded-full bg-panel2 hover:bg-accent text-white flex items-center justify-center shrink-0" aria-label="Play">
+          <Play size={14} fill="currentColor" className="translate-x-[1px]" />
+        </button>
       ) : item.share_slug ? (
         <Link to={`/listen/${item.share_slug}`} className="text-xs text-muted hover:text-white shrink-0 px-2 py-1">Open</Link>
       ) : null}
@@ -250,17 +253,17 @@ function SavedTrackRow({
         <button
           onClick={onDownload}
           disabled={downloading}
-          className="text-xs text-muted hover:text-white shrink-0 px-2 py-1 disabled:opacity-60"
+          className="text-xs text-muted hover:text-white shrink-0 px-2 py-1 disabled:opacity-60 flex items-center gap-1.5"
           aria-label="Download audio"
           title="Download audio file"
         >
-          <span className="hidden sm:inline">{downloading ? "…" : "⬇ Download"}</span>
-          <span className="sm:hidden">{downloading ? "…" : "⬇"}</span>
+          <Download size={14} />
+          <span className="hidden sm:inline">{downloading ? "…" : "Download"}</span>
         </button>
       )}
-      <button onClick={onRemove} className="text-xs text-muted hover:text-red-400 shrink-0 px-2 py-1" aria-label="Remove">
+      <button onClick={onRemove} className="text-xs text-muted hover:text-red-400 shrink-0 px-2 py-1 flex items-center gap-1.5" aria-label="Remove">
+        <X size={14} />
         <span className="hidden sm:inline">Remove</span>
-        <span className="sm:hidden">✕</span>
       </button>
     </li>
   );
@@ -272,11 +275,11 @@ function SavedAlbumCard({ item, onPlay, onRemove }: { item: SavedAlbumItem; onPl
   const reason = !accessible ? statusReason(item) ?? "No longer available" : null;
   return (
     <div className="group bg-panel border border-edge rounded-xl overflow-hidden hover:border-accent/60 transition flex flex-col">
-      <div className="relative aspect-square bg-gradient-to-br from-panel2 to-ink flex items-center justify-center text-4xl text-edge">
+      <div className="relative aspect-square bg-gradient-to-br from-panel2 to-ink flex items-center justify-center text-edge">
         {item.album_artwork_url ? (
           <img src={item.album_artwork_url} alt="" className="w-full h-full object-cover" />
         ) : (
-          "♪"
+          <Music size={40} strokeWidth={1.2} />
         )}
         {accessible && (
           <button
@@ -284,7 +287,7 @@ function SavedAlbumCard({ item, onPlay, onRemove }: { item: SavedAlbumItem; onPl
             className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-accent text-white flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition"
             aria-label="Play album"
           >
-            ▶
+            <Play size={16} fill="currentColor" className="translate-x-[1px]" />
           </button>
         )}
       </div>

@@ -7,7 +7,7 @@ import { downloadAudio, getSignedAudioUrl, inferAudioMeta, inferVersionLabel, sa
 import { decodeAudio, detectBpm, detectKey, peaksFromBuffer } from "../lib/audioAnalysis";
 import { usePlayer } from "../lib/player";
 import ShareModal from "../components/ShareModal";
-import InsightsPanel from "../components/InsightsPanel";
+import { Download, Play, Share2, Sparkles, Trash2 } from "lucide-react";
 
 export default function TrackPage() {
   const { trackId } = useParams<{ trackId: string }>();
@@ -15,15 +15,12 @@ export default function TrackPage() {
   const [track, setTrack] = useState<Track | null>(null);
   const [album, setAlbum] = useState<Album | null>(null);
   const [versions, setVersions] = useState<Version[]>([]);
-  const [notes, setNotes] = useState("");
-  const [savingNotes, setSavingNotes] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   const [uploadErr, setUploadErr] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const play = usePlayer((s) => s.play);
   const [shareVersion, setShareVersion] = useState<Version | null>(null);
-  const [tab, setTab] = useState<"insights" | "notes">("insights");
   const [redetecting, setRedetecting] = useState(false);
   const [redetectStatus, setRedetectStatus] = useState<string | null>(null);
   const [redetectErr, setRedetectErr] = useState<string | null>(null);
@@ -35,7 +32,6 @@ export default function TrackPage() {
       const t = await supabase.from("tracks").select("*").eq("id", trackId).single();
       if (cancel || !t.data) return;
       setTrack(t.data as Track);
-      setNotes((t.data as Track).notes ?? "");
       const [a, v] = await Promise.all([
         supabase.from("albums").select("*").eq("id", (t.data as Track).album_id).single(),
         supabase.from("versions").select("*").eq("track_id", trackId).order("uploaded_at", { ascending: false }),
@@ -48,13 +44,6 @@ export default function TrackPage() {
       cancel = true;
     };
   }, [trackId]);
-
-  const saveNotes = async () => {
-    if (!track) return;
-    setSavingNotes(true);
-    await supabase.from("tracks").update({ notes }).eq("id", track.id);
-    setSavingNotes(false);
-  };
 
   const onUpload = async (file: File) => {
     if (!user || !track) return;
@@ -253,17 +242,12 @@ export default function TrackPage() {
           title="Re-analyze the current version's audio for BPM and key"
           className="bg-panel border border-edge hover:border-accent/60 disabled:opacity-50 text-white text-sm px-3 py-2 rounded-lg flex items-center gap-1.5"
         >
-          <span aria-hidden>✦</span>
+          <Sparkles size={14} />
           {redetecting ? (redetectStatus ?? "Detecting…") : "Re-detect"}
         </button>
         {redetectErr && <span className="text-xs text-red-400">{redetectErr}</span>}
         {!redetecting && redetectStatus === "Done." && <span className="text-xs text-emerald-400">Updated</span>}
       </div>
-
-      <DownloadToggle
-        track={track}
-        onChange={(allow) => setTrack({ ...track, allow_download: allow })}
-      />
 
       <section className="bg-panel border border-edge rounded-2xl p-4 sm:p-5 mb-6">
         <div className="flex items-center justify-between gap-3 mb-4">
@@ -305,7 +289,7 @@ export default function TrackPage() {
                   className="w-9 h-9 shrink-0 rounded-full bg-panel2 hover:bg-accent text-white flex items-center justify-center"
                   aria-label="Play"
                 >
-                  ▶
+                  <Play size={14} fill="currentColor" className="translate-x-[1px]" />
                 </button>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm text-white truncate">{v.label}</div>
@@ -329,69 +313,34 @@ export default function TrackPage() {
                 )}
                 <button
                   onClick={() => setShareVersion(v)}
-                  className="text-xs text-muted hover:text-white shrink-0"
+                  className="text-xs text-muted hover:text-white shrink-0 flex items-center gap-1.5"
                   aria-label="Share version"
                   title="Share"
                 >
+                  <Share2 size={14} />
                   <span className="hidden sm:inline">Share</span>
-                  <span className="sm:hidden">↗</span>
                 </button>
                 <button
                   onClick={() => onDownloadVersion(v)}
                   disabled={downloadingVersionId === v.id}
-                  className="text-xs text-muted hover:text-white shrink-0 disabled:opacity-60"
+                  className="text-xs text-muted hover:text-white shrink-0 disabled:opacity-60 flex items-center gap-1.5"
                   aria-label="Download version"
                   title="Download audio file"
                 >
+                  <Download size={14} />
                   <span className="hidden sm:inline">{downloadingVersionId === v.id ? "…" : "Download"}</span>
-                  <span className="sm:hidden">{downloadingVersionId === v.id ? "…" : "⬇"}</span>
                 </button>
                 <button
                   onClick={() => deleteVersion(v)}
-                  className="text-xs text-muted hover:text-red-400 shrink-0"
+                  className="text-xs text-muted hover:text-red-400 shrink-0 flex items-center gap-1.5"
                   aria-label="Delete version"
                 >
+                  <Trash2 size={14} />
                   <span className="hidden sm:inline">Delete</span>
-                  <span className="sm:hidden">✕</span>
                 </button>
               </li>
             ))}
           </ul>
-        )}
-      </section>
-
-      <section className="bg-panel border border-edge rounded-2xl p-4 sm:p-5">
-        <div className="flex items-center gap-1 mb-4 bg-ink p-1 rounded-lg w-fit">
-          <TabButton active={tab === "insights"} onClick={() => setTab("insights")}>
-            Insights
-          </TabButton>
-          <TabButton active={tab === "notes"} onClick={() => setTab("notes")}>
-            Notes
-          </TabButton>
-        </div>
-
-        {tab === "insights" ? (
-          <InsightsPanel trackId={track.id} ownerId={user?.id ?? ""} />
-        ) : (
-          <div>
-            <div className="flex items-center justify-end mb-2">
-              <button
-                onClick={saveNotes}
-                disabled={savingNotes}
-                className="text-xs text-muted hover:text-white"
-              >
-                {savingNotes ? "Saving…" : "Save"}
-              </button>
-            </div>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              onBlur={saveNotes}
-              rows={8}
-              placeholder="Lyrics, ideas, things to fix on the next take…"
-              className="w-full bg-ink border border-edge focus:border-accent focus:outline-none rounded-lg px-3 py-2 text-white placeholder:text-muted text-sm"
-            />
-          </div>
         )}
       </section>
 
@@ -403,73 +352,6 @@ export default function TrackPage() {
         />
       )}
     </div>
-  );
-}
-
-function DownloadToggle({
-  track,
-  onChange,
-}: {
-  track: Track;
-  onChange: (allow: boolean) => void;
-}) {
-  const [busy, setBusy] = useState(false);
-  const allow = track.allow_download;
-  const toggle = async () => {
-    setBusy(true);
-    const next = !allow;
-    onChange(next);
-    const { error } = await supabase
-      .from("tracks")
-      .update({ allow_download: next })
-      .eq("id", track.id);
-    setBusy(false);
-    if (error) {
-      console.error("[download-toggle] failed", error);
-      onChange(allow); // revert
-      alert(error.message);
-    }
-  };
-  return (
-    <button
-      type="button"
-      onClick={toggle}
-      disabled={busy}
-      className={`mb-6 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm transition disabled:opacity-60 ${
-        allow
-          ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300 hover:border-emerald-500/60"
-          : "bg-panel border-edge text-muted hover:border-accent/60 hover:text-white"
-      }`}
-      aria-pressed={allow}
-    >
-      <span aria-hidden>{allow ? "⬇" : "🔒"}</span>
-      <span>{allow ? "Downloads enabled" : "Streaming only"}</span>
-      <span className={`ml-1 inline-flex h-4 w-7 rounded-full p-0.5 transition ${allow ? "bg-emerald-500/60" : "bg-edge"}`}>
-        <span className={`h-3 w-3 rounded-full bg-white transition-transform ${allow ? "translate-x-3" : "translate-x-0"}`} />
-      </span>
-    </button>
-  );
-}
-
-function TabButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`text-sm px-3 py-1.5 rounded-md transition ${
-        active ? "bg-panel2 text-white" : "text-muted hover:text-white"
-      }`}
-    >
-      {children}
-    </button>
   );
 }
 

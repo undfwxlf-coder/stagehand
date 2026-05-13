@@ -23,6 +23,8 @@ import type { Album, AlbumStatus, Track, TrackStatus, Version } from "../lib/dat
 import { usePlayer } from "../lib/player";
 import { getSignedAudioUrl } from "../lib/audio";
 import AlbumShareModal from "../components/AlbumShareModal";
+import TrackDetailsSheet from "../components/TrackDetailsSheet";
+import { Music, Share2 } from "lucide-react";
 
 const ALBUM_STATUSES: AlbumStatus[] = ["writing", "recording", "mixing", "mastering", "released"];
 const TRACK_STATUSES: TrackStatus[] = ["idea", "demo", "tracking", "mixing", "mastering", "released"];
@@ -40,8 +42,8 @@ interface TrackWithVersion extends Track {
   version?: Version | null;
 }
 
-// Mobile: title (1fr) | status (108) | play (28). Desktop: handle | # | title | status | length | play.
-const ROW_GRID = "grid-cols-[1fr_108px_28px] sm:grid-cols-[24px_24px_1fr_140px_100px_28px]";
+// Mobile: title (1fr) | status (108) | play (28) | more (28). Desktop: handle | # | title | status | length | play | more.
+const ROW_GRID = "grid-cols-[1fr_108px_28px_28px] sm:grid-cols-[24px_24px_1fr_140px_100px_28px_28px]";
 
 export default function AlbumPage() {
   const { albumId } = useParams<{ albumId: string }>();
@@ -54,6 +56,7 @@ export default function AlbumPage() {
   const [artErr, setArtErr] = useState<string | null>(null);
   const artFileRef = useRef<HTMLInputElement>(null);
   const [showShare, setShowShare] = useState(false);
+  const [detailsTrackId, setDetailsTrackId] = useState<string | null>(null);
   const play = usePlayer((s) => s.play);
   const setQueue = usePlayer((s) => s.setQueue);
 
@@ -243,7 +246,7 @@ export default function AlbumPage() {
             {album.artwork_url ? (
               <img src={album.artwork_url} alt="" className="w-full h-full object-cover" />
             ) : (
-              <span>♪</span>
+              <Music size={48} strokeWidth={1.25} />
             )}
             <span className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-sm font-medium">
               {uploadingArt ? "Uploading…" : album.artwork_url ? "Change cover" : "Upload cover"}
@@ -267,11 +270,12 @@ export default function AlbumPage() {
             <h1 className="text-2xl sm:text-3xl font-semibold text-white tracking-tight mt-1 break-words">{album.title}</h1>
             <button
               onClick={() => setShowShare(true)}
-              className="mt-1 shrink-0 bg-panel2 hover:bg-edge text-white text-sm font-medium px-3 sm:px-4 py-2 rounded-lg border border-edge"
+              className="mt-1 shrink-0 bg-panel2 hover:bg-edge text-white text-sm font-medium px-3 sm:px-4 py-2 rounded-lg border border-edge flex items-center gap-1.5"
               aria-label="Share album"
             >
+              <Share2 size={14} />
               <span className="hidden sm:inline">Share album</span>
-              <span className="sm:hidden">Share ↗</span>
+              <span className="sm:hidden">Share</span>
             </button>
           </div>
           <div className="mt-3 flex items-center gap-2 flex-wrap">
@@ -298,6 +302,7 @@ export default function AlbumPage() {
           <span>Status</span>
           <span className="text-right hidden sm:block">Length</span>
           <span></span>
+          <span></span>
         </div>
         {tracks.length === 0 ? (
           <div className="px-5 py-12 text-center text-muted text-sm">
@@ -314,6 +319,7 @@ export default function AlbumPage() {
                   onStatusChange={(status) => updateTrackStatus(t.id, status)}
                   onRename={(title) => renameTrack(t.id, title)}
                   onPlay={() => playTrack(t)}
+                  onOpenDetails={() => setDetailsTrackId(t.id)}
                 />
               ))}
             </SortableContext>
@@ -336,6 +342,25 @@ export default function AlbumPage() {
       </div>
 
       {showShare && <AlbumShareModal album={album} onClose={() => setShowShare(false)} />}
+
+      {detailsTrackId && (() => {
+        const t = tracks.find((tr) => tr.id === detailsTrackId);
+        if (!t) return null;
+        return (
+          <TrackDetailsSheet
+            track={t}
+            version={t.version ?? null}
+            albumTitle={album.title}
+            albumArtworkUrl={album.artwork_url ?? null}
+            artistName={(user?.user_metadata?.artist_name as string | undefined) ?? null}
+            ownerId={user?.id ?? ""}
+            onClose={() => setDetailsTrackId(null)}
+            onTrackChange={(patch) =>
+              setTracks((rows) => rows.map((r) => (r.id === t.id ? { ...r, ...patch } : r)))
+            }
+          />
+        );
+      })()}
     </div>
   );
 }
@@ -346,12 +371,14 @@ function SortableTrackRow({
   onStatusChange,
   onRename,
   onPlay,
+  onOpenDetails,
 }: {
   track: TrackWithVersion;
   index: number;
   onStatusChange: (s: TrackStatus) => void;
   onRename: (title: string) => void;
   onPlay: () => void;
+  onOpenDetails: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: track.id });
   const [editing, setEditing] = useState(false);
@@ -482,7 +509,21 @@ function SortableTrackRow({
         className="w-8 h-8 rounded-full text-muted hover:text-white disabled:opacity-30 hover:bg-ink active:bg-ink flex items-center justify-center"
         aria-label="Play"
       >
-        ▶
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+          <path d="M2.5 1.5v9l8-4.5-8-4.5z" />
+        </svg>
+      </button>
+      <button
+        onClick={(e) => { e.stopPropagation(); e.preventDefault(); onOpenDetails(); }}
+        className="w-8 h-8 rounded-full text-muted hover:text-white hover:bg-ink active:bg-ink flex items-center justify-center"
+        aria-label="Track details"
+        title="Track details"
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <circle cx="3.5" cy="8" r="1.3" />
+          <circle cx="8" cy="8" r="1.3" />
+          <circle cx="12.5" cy="8" r="1.3" />
+        </svg>
       </button>
     </div>
   );
