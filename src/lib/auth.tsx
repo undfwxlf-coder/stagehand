@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase, supabaseConfigured } from "./supabase";
+import { useProfileStore } from "./profile";
 
 interface AuthCtx {
   user: User | null;
@@ -51,6 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    useProfileStore.getState().clear();
   };
 
   return (

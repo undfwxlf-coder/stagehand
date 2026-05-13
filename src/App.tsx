@@ -6,6 +6,7 @@ import AlbumPage from "./pages/AlbumPage";
 import TrackPage from "./pages/TrackPage";
 import SavedPage from "./pages/SavedPage";
 import ListenPage from "./pages/ListenPage";
+import ProfilePage from "./pages/ProfilePage";
 import AppShell from "./components/AppShell";
 
 export default function App() {
@@ -21,6 +22,7 @@ export default function App() {
               <Route path="album/:albumId" element={<AlbumPage />} />
               <Route path="track/:trackId" element={<TrackPage />} />
               <Route path="saved" element={<SavedPage />} />
+              <Route path="profile" element={<ProfilePage />} />
             </Route>
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

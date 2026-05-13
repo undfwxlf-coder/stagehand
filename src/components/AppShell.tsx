@@ -1,12 +1,30 @@
+import { useEffect } from "react";
 import { Link, NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import PlayerBar from "./PlayerBar";
 import Logo from "./Logo";
 import { usePlayer } from "../lib/player";
+import { useProfileStore } from "../lib/profile";
 
 export default function AppShell() {
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const hasPlayer = usePlayer((s) => Boolean(s.current));
+  const profile = useProfileStore((s) => s.profile);
+  const loadProfile = useProfileStore((s) => s.load);
+
+  useEffect(() => {
+    if (user) loadProfile(user.id);
+  }, [user, loadProfile]);
+
+  const avatarUrl = profile?.avatar_url ?? null;
+  const initial = (
+    profile?.artist_name?.trim() ||
+    (user?.user_metadata?.artist_name as string | undefined) ||
+    user?.email ||
+    "?"
+  )
+    .charAt(0)
+    .toUpperCase();
 
   return (
     <div className={`min-h-screen flex flex-col ${hasPlayer ? "pb-32 sm:pb-32" : ""}`}>
@@ -20,16 +38,18 @@ export default function AppShell() {
             <NavTab to="/saved">Saved</NavTab>
           </nav>
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            <span className="text-xs text-muted hidden md:block max-w-[14rem] truncate">{user?.email}</span>
-            <button
-              onClick={signOut}
-              aria-label="Sign out"
-              title="Sign out"
-              className="text-sm text-muted hover:text-white px-2.5 sm:px-3 py-1.5 rounded-md hover:bg-panel2 transition"
+            <Link
+              to="/profile"
+              aria-label="Your profile"
+              title="Your profile"
+              className="w-8 h-8 rounded-full overflow-hidden bg-panel2 border border-edge hover:border-muted/60 transition flex items-center justify-center"
             >
-              <span className="hidden sm:inline">Sign out</span>
-              <span className="sm:hidden" aria-hidden>⎋</span>
-            </button>
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-xs font-medium text-muted">{initial}</span>
+              )}
+            </Link>
           </div>
         </div>
       </header>
