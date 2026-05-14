@@ -57,6 +57,8 @@ export default function AlbumPage() {
   const [uploadingArt, setUploadingArt] = useState(false);
   const [artErr, setArtErr] = useState<string | null>(null);
   const artFileRef = useRef<HTMLInputElement>(null);
+  const addTrackFileRef = useRef<HTMLInputElement>(null);
+  const [addTrackMenuOpen, setAddTrackMenuOpen] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [detailsTrackId, setDetailsTrackId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState(false);
@@ -106,7 +108,7 @@ export default function AlbumPage() {
     };
   }, [albumId]);
 
-  const addTrack = async () => {
+  const addEmptyTrack = async () => {
     if (!albumId) return;
     const position = tracks.length;
     const { data, error } = await supabase
@@ -544,14 +546,57 @@ export default function AlbumPage() {
             </SortableContext>
           </DndContext>
         )}
-        <div className="px-3 sm:px-5 py-3 bg-panel2/30">
+        <div className="px-3 sm:px-5 py-3 bg-panel2/30 relative">
+          <input
+            ref={addTrackFileRef}
+            type="file"
+            accept="audio/*,.wav,.mp3,.aiff,.flac,.m4a"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              const files = Array.from(e.target.files ?? []).filter(isAudioFile);
+              if (files.length) void createTracksFromFiles(files);
+              if (addTrackFileRef.current) addTrackFileRef.current.value = "";
+            }}
+          />
           <button
             type="button"
-            onClick={addTrack}
+            onClick={() => setAddTrackMenuOpen((v) => !v)}
             className="w-full bg-accent hover:bg-accent/90 text-white text-sm font-medium px-4 py-2 rounded-lg"
           >
             + Add track
           </button>
+          {addTrackMenuOpen && (
+            <>
+              <div className="fixed inset-0 z-30" onClick={() => setAddTrackMenuOpen(false)} aria-hidden />
+              <div className="absolute left-3 right-3 sm:left-5 sm:right-5 bottom-full mb-2 bg-panel border border-edge rounded-lg shadow-xl py-1 z-40">
+                <button
+                  onClick={() => {
+                    setAddTrackMenuOpen(false);
+                    addTrackFileRef.current?.click();
+                  }}
+                  className="w-full text-left px-3 py-2.5 text-sm text-white hover:bg-panel2 flex items-center gap-2.5"
+                >
+                  <UploadCloud size={16} className="text-muted" />
+                  <span className="flex-1">From audio file</span>
+                  <span className="text-xs text-muted">WAV, MP3, AIFF, FLAC, M4A</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setAddTrackMenuOpen(false);
+                    void addEmptyTrack();
+                  }}
+                  className="w-full text-left px-3 py-2.5 text-sm text-white hover:bg-panel2 flex items-center gap-2.5"
+                >
+                  <Music size={16} className="text-muted" />
+                  <span>Empty track (add audio later)</span>
+                </button>
+                <div className="border-t border-edge mt-1 pt-1 px-3 pb-1 text-xs text-muted">
+                  Tip: drop audio anywhere on the list to add tracks fast.
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
