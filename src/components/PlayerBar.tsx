@@ -36,87 +36,102 @@ export default function PlayerBar() {
   const preloadedVersionRef = useRef<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Create the wavesurfer instance exactly once. Re-mounting it on every track
-  // change introduces a setup gap; we just call `ws.load()` instead.
+  // Lazily create the wavesurfer instance on the first track-change effect.
+  // We can't do this on mount because `PlayerBar` early-returns `null` until
+  // the first track is set, so the `<div ref={containerRef}>` doesn't exist
+  // until after `current` becomes non-null. Once created, the same instance
+  // is reused for every subsequent track change — only `ws.load()` is called,
+  // which (combined with the queue-preload effect below) makes auto-advance
+  // effectively gapless.
   useEffect(() => {
+    if (!current) return;
     if (!containerRef.current) return;
-    const ws = WaveSurfer.create({
-      container: containerRef.current,
-      height: 32,
-      waveColor: "rgba(255,255,255,0.18)",
-      progressColor: "#ff6b3d",
-      cursorColor: "rgba(255,255,255,0.5)",
-      barWidth: 2,
-      barRadius: 2,
-      barGap: 2,
-      normalize: true,
-    });
+    if (lastVersionId.current === current.versionId && wsRef.current) return;
 
-    ws.on("ready", () => {
-      readyRef.current = true;
-      setDuration(ws.getDuration());
-      try {
-        ws.setVolume(muted ? 0 : volume);
-        ws.setMuted(muted);
-      } catch {
-        // ignore
-      }
-      if (wantsPlayRef.current) {
-        ws.play().catch((e) => {
-          console.error("[player] play() rejected", e);
-          setPlaying(false);
-        });
-      }
-    });
-    ws.on("loading", (n) => {
-      if (n === 0) setLoadError(null);
-    });
-    ws.on("error", (e) => {
-      console.error("[player] wavesurfer error", e);
-      setLoadError(e instanceof Error ? e.message : String(e));
-      setPlaying(false);
-    });
-    ws.on("audioprocess", () => setPosition(ws.getCurrentTime()));
-    ws.on("seeking", () => setPosition(ws.getCurrentTime()));
-    ws.on("play", () => {
-      setPlaying(true);
-      const cur = usePlayer.getState().current;
-      if (cur) recordPlay(cur.trackId);
-    });
-    ws.on("pause", () => setPlaying(false));
-    ws.on("finish", () => next());
+    let ws = wsRef.current;
+    if (!ws) {
+      ws = WaveSurfer.create({
+        container: containerRef.current,
+        height: 32,
+        waveColor: "rgba(255,255,255,0.18)",
+        progressColor: "#ff6b3d",
+        cursorColor: "rgba(255,255,255,0.5)",
+        barWidth: 2,
+        barRadius: 2,
+        barGap: 2,
+        normalize: true,
+      });
 
-    wsRef.current = ws;
-    return () => {
-      ws.destroy();
-      wsRef.current = null;
-    };
-    // Deliberately not depending on volume/muted — the inner closure reads them
-    // at instance-creation time; the dedicated volume effect below keeps them
-    // in sync after that. We only want this to run once.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+      ws.on("ready", () => {
+        readyRef.current = true;
+        const w = wsRef.current;
+        if (!w) return;
+        setDuration(w.getDuration());
+        const { volume: v, muted: m } = usePlayer.getState();
+        try {
+          w.setVolume(m ? 0 : v);
+          w.setMuted(m);
+        } catch {
+          // ignore
+        }
+        if (wantsPlayRef.current) {
+          w.play().catch((e) => {
+            console.error("[player] play() rejected", e);
+            setPlaying(false);
+          });
+        }
+      });
+      ws.on("loading", (n) => {
+        if (n === 0) setLoadError(null);
+      });
+      ws.on("error", (e) => {
+        console.error("[player] wavesurfer error", e);
+        setLoadError(e instanceof Error ? e.message : String(e));
+        setPlaying(false);
+      });
+      ws.on("audioprocess", () => {
+        const w = wsRef.current;
+        if (w) setPosition(w.getCurrentTime());
+      });
+      ws.on("seeking", () => {
+        const w = wsRef.current;
+        if (w) setPosition(w.getCurrentTime());
+      });
+      ws.on("play", () => {
+        setPlaying(true);
+        const cur = usePlayer.getState().current;
+        if (cur) recordPlay(cur.trackId);
+      });
+      ws.on("pause", () => setPlaying(false));
+      ws.on("finish", () => next());
 
-  // Track-change effect: just (re)load the current URL on the persistent ws.
-  useEffect(() => {
-    const ws = wsRef.current;
-    if (!ws || !current) return;
-    if (lastVersionId.current === current.versionId) return;
+      wsRef.current = ws;
+    }
+
     lastVersionId.current = current.versionId;
     readyRef.current = false;
     setLoadError(null);
     const peaks = current.peaks ? [current.peaks] : undefined;
     const duration = current.duration ?? undefined;
+    const instance = ws;
     (async () => {
       try {
         const url = await resolvePlayerUrl(current);
-        await ws.load(url, peaks, duration);
+        await instance.load(url, peaks, duration);
       } catch (e) {
         console.error("[player] load() rejected", e);
         setLoadError(e instanceof Error ? e.message : String(e));
       }
     })();
-  }, [current]);
+  }, [current, next, setDuration, setPlaying, setPosition]);
+
+  // Tear down the wavesurfer instance on unmount.
+  useEffect(() => {
+    return () => {
+      wsRef.current?.destroy();
+      wsRef.current = null;
+    };
+  }, []);
 
   // Preload the *next* queue item once the current track is in flight. The
   // bytes land in the browser HTTP cache, so when the user finishes the
