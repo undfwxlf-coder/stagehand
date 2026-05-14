@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
@@ -19,7 +19,8 @@ export default function TrackPage() {
   const [versions, setVersions] = useState<Version[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const enqueueUpload = useUploadStore((s) => s.enqueue);
-  const myJobs = useUploadStore((s) => s.jobs.filter((j) => j.trackId === trackId));
+  const allJobs = useUploadStore((s) => s.jobs);
+  const myJobs = useMemo(() => allJobs.filter((j) => j.trackId === trackId), [allJobs, trackId]);
   const activeJob = myJobs.find((j) => isActivePhase(j.phase)) ?? null;
   const lastErrorJob = myJobs.find((j) => j.phase === "error") ?? null;
   const play = usePlayer((s) => s.play);
