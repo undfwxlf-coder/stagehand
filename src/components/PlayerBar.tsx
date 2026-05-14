@@ -34,6 +34,11 @@ export default function PlayerBar() {
   // audible gap between tracks.
   const preloadAudioRef = useRef<HTMLAudioElement | null>(null);
   const preloadedVersionRef = useRef<string | null>(null);
+  // Set true the moment a track ends naturally and we call next(). Suppresses
+  // the trailing `pause` event that wavesurfer fires after the audio element's
+  // `ended` — otherwise that pause flips isPlaying back to false and the next
+  // track loads but doesn't auto-play.
+  const finishingRef = useRef(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // Lazily create the wavesurfer instance on the first track-change effect.
@@ -67,18 +72,24 @@ export default function PlayerBar() {
         const w = wsRef.current;
         if (!w) return;
         setDuration(w.getDuration());
-        const { volume: v, muted: m } = usePlayer.getState();
+        const { volume: v, muted: m, isPlaying: shouldPlay } = usePlayer.getState();
         try {
           w.setVolume(m ? 0 : v);
           w.setMuted(m);
         } catch {
           // ignore
         }
-        if (wantsPlayRef.current) {
+        // Read the freshest store state rather than the ref, since the
+        // wantsPlayRef effect may not have run yet when this fires right
+        // after an auto-advance.
+        if (shouldPlay || wantsPlayRef.current) {
+          console.log("[player] ready → auto-play");
           w.play().catch((e) => {
             console.error("[player] play() rejected", e);
             setPlaying(false);
           });
+        } else {
+          console.log("[player] ready → not playing (shouldPlay false)");
         }
       });
       ws.on("loading", (n) => {
@@ -102,8 +113,26 @@ export default function PlayerBar() {
         const cur = usePlayer.getState().current;
         if (cur) recordPlay(cur.trackId);
       });
-      ws.on("pause", () => setPlaying(false));
-      ws.on("finish", () => next());
+      ws.on("pause", () => {
+        if (finishingRef.current) {
+          // Swallow the trailing pause from a natural track end. The finish
+          // handler has already advanced the queue and we want playback to
+          // continue on the next track.
+          console.log("[player] pause (suppressed — natural end)");
+          return;
+        }
+        console.log("[player] pause");
+        setPlaying(false);
+      });
+      ws.on("finish", () => {
+        console.log("[player] finish → advancing queue");
+        finishingRef.current = true;
+        // Reset after a tick — long enough to swallow the trailing pause but
+        // short enough that any legitimate user-initiated pause that follows
+        // will work normally.
+        setTimeout(() => { finishingRef.current = false; }, 250);
+        next();
+      });
 
       wsRef.current = ws;
     }
@@ -117,6 +146,7 @@ export default function PlayerBar() {
     (async () => {
       try {
         const url = await resolvePlayerUrl(current);
+        console.log("[player] load", current.title, current.versionId);
         await instance.load(url, peaks, duration);
       } catch (e) {
         console.error("[player] load() rejected", e);
