@@ -54,7 +54,6 @@ export default function AlbumPage() {
   const [album, setAlbum] = useState<Album | null>(null);
   const [tracks, setTracks] = useState<TrackWithVersion[]>([]);
   const [loading, setLoading] = useState(true);
-  const [newTrackTitle, setNewTrackTitle] = useState("");
   const [uploadingArt, setUploadingArt] = useState(false);
   const [artErr, setArtErr] = useState<string | null>(null);
   const artFileRef = useRef<HTMLInputElement>(null);
@@ -107,13 +106,12 @@ export default function AlbumPage() {
     };
   }, [albumId]);
 
-  const addTrack = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newTrackTitle.trim() || !albumId) return;
+  const addTrack = async () => {
+    if (!albumId) return;
     const position = tracks.length;
     const { data, error } = await supabase
       .from("tracks")
-      .insert({ album_id: albumId, title: newTrackTitle.trim(), position })
+      .insert({ album_id: albumId, title: "Untitled", position })
       .select()
       .single();
     if (error) {
@@ -121,7 +119,6 @@ export default function AlbumPage() {
       return;
     }
     setTracks((tr) => [...tr, data as Track]);
-    setNewTrackTitle("");
   };
 
   // Drop one or more audio files onto the album → create a new track per file and
@@ -547,20 +544,15 @@ export default function AlbumPage() {
             </SortableContext>
           </DndContext>
         )}
-        <form onSubmit={addTrack} className="px-3 sm:px-5 py-3 flex gap-2 bg-panel2/30">
-          <input
-            value={newTrackTitle}
-            onChange={(e) => setNewTrackTitle(e.target.value)}
-            placeholder="Add a track…"
-            className="flex-1 min-w-0 bg-ink border border-edge focus:border-accent focus:outline-none rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted"
-          />
+        <div className="px-3 sm:px-5 py-3 bg-panel2/30">
           <button
-            type="submit"
-            className="bg-accent hover:bg-accent/90 text-white text-sm font-medium px-4 rounded-lg shrink-0"
+            type="button"
+            onClick={addTrack}
+            className="w-full bg-accent hover:bg-accent/90 text-white text-sm font-medium px-4 py-2 rounded-lg"
           >
-            Add
+            + Add track
           </button>
-        </form>
+        </div>
       </div>
 
       {showShare && <AlbumShareModal album={album} onClose={() => setShowShare(false)} />}
