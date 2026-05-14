@@ -7,6 +7,7 @@ import HeaderSearch from "./HeaderSearch";
 import NotificationsBell from "./NotificationsBell";
 import NotificationsBootstrap from "./NotificationsBootstrap";
 import NotificationToasts from "./NotificationToasts";
+import UploadIndicator from "./UploadIndicator";
 import { usePlayer } from "../lib/player";
 import { useProfileStore } from "../lib/profile";
 
@@ -77,6 +78,7 @@ export default function AppShell() {
       <PlayerBar />
       <NotificationsBootstrap />
       <NotificationToasts />
+      <UploadIndicator />
     </div>
   );
 }

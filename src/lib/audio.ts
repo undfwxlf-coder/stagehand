@@ -20,6 +20,14 @@ export async function downloadAudio(url: string, suggestedFilename: string): Pro
   setTimeout(() => URL.revokeObjectURL(objUrl), 1500);
 }
 
+const AUDIO_EXTS = new Set(["wav", "mp3", "aiff", "aif", "flac", "m4a", "ogg", "opus", "aac", "wma"]);
+
+export function isAudioFile(file: File): boolean {
+  if (file.type && file.type.startsWith("audio/")) return true;
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+  return AUDIO_EXTS.has(ext);
+}
+
 export function safeFilename(s: string): string {
   return s.replace(/[\\/:*?"<>|]+/g, "").trim().slice(0, 80) || "track";
 }
@@ -43,6 +51,20 @@ const STAGE_LABELS: { pattern: RegExp; label: string }[] = [
   { pattern: /\bwip\b/i, label: "WIP" },
   { pattern: /\bbounce\b/i, label: "bounce" },
 ];
+
+export function inferTrackTitle(filename: string): string {
+  let stem = filename.replace(/\.[^.]+$/, "");
+  // Strip version/stage tokens, BPM and key annotations so the title reads cleanly.
+  stem = stem.replace(/\b(?:v|ver|version|rev)\.?\s*\d{1,3}\b/gi, "");
+  stem = stem.replace(/\b\d{2,3}(?:\.\d+)?\s*bpm\b/gi, "");
+  stem = stem.replace(/\bbpm[\s_-]*\d{2,3}(?:\.\d+)?\b/gi, "");
+  stem = stem.replace(/(?:^|[\s_(/-])([A-G][#b♯♭]?)(maj|min|m)(?=$|[\s_)/-])/g, " ");
+  stem = stem.replace(/(?:^|[\s_(/-])([A-G][#b♯♭]?)\s*(major|minor)\b/gi, " ");
+  for (const { pattern } of STAGE_LABELS) stem = stem.replace(pattern, "");
+  // Replace separators with spaces, collapse whitespace.
+  stem = stem.replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+  return stem || "Untitled";
+}
 
 export function inferVersionLabel(filename: string, existingCount: number): string {
   const stem = filename.replace(/\.[^.]+$/, "");

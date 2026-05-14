@@ -21,11 +21,12 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import type { Album, AlbumStatus, Track, TrackStatus, Version } from "../lib/database.types";
 import { usePlayer } from "../lib/player";
-import { getSignedAudioUrl } from "../lib/audio";
+import { getSignedAudioUrl, inferTrackTitle, isAudioFile } from "../lib/audio";
 import AlbumShareModal from "../components/AlbumShareModal";
 import TrackDetailsSheet from "../components/TrackDetailsSheet";
-import { Check, MoreHorizontal, Music, Pencil, Share2, Trash2, X } from "lucide-react";
+import { Check, MoreHorizontal, Music, Pencil, Share2, Trash2, UploadCloud, X } from "lucide-react";
 import { useLibraryStore } from "../lib/library";
+import { useUploadStore } from "../lib/uploads";
 
 const ALBUM_STATUSES: AlbumStatus[] = ["writing", "recording", "mixing", "mastering", "released"];
 const TRACK_STATUSES: TrackStatus[] = ["idea", "demo", "tracking", "mixing", "mastering", "released"];
@@ -66,6 +67,10 @@ export default function AlbumPage() {
   const removeLibraryAlbum = useLibraryStore((s) => s.remove);
   const play = usePlayer((s) => s.play);
   const setQueue = usePlayer((s) => s.setQueue);
+  const enqueueUpload = useUploadStore((s) => s.enqueue);
+  const [dropActive, setDropActive] = useState(false);
+  const [dropTargetTrackId, setDropTargetTrackId] = useState<string | null>(null);
+  const dropDepth = useRef(0);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -117,6 +122,76 @@ export default function AlbumPage() {
     }
     setTracks((tr) => [...tr, data as Track]);
     setNewTrackTitle("");
+  };
+
+  // Drop one or more audio files onto the album → create a new track per file and
+  // enqueue an upload for each. Track inserts run in parallel; positions reserve
+  // contiguous slots starting at the current end of the list.
+  const createTracksFromFiles = async (files: File[]) => {
+    if (!albumId || !user || files.length === 0) return;
+    const basePosition = tracks.length;
+    const inserts = await Promise.all(
+      files.map((f, i) =>
+        supabase
+          .from("tracks")
+          .insert({ album_id: albumId, title: inferTrackTitle(f.name), position: basePosition + i })
+          .select()
+          .single()
+      )
+    );
+    const created: Track[] = [];
+    inserts.forEach((res, i) => {
+      if (res.error || !res.data) {
+        console.error("[drop] track insert failed", res.error);
+        return;
+      }
+      const newTrack = res.data as Track;
+      created.push(newTrack);
+      enqueueUpload({ file: files[i], track: newTrack, userId: user.id, existingVersionCount: 0 });
+    });
+    if (created.length) {
+      setTracks((tr) => [...tr, ...created.map((t) => ({ ...t, version: null }))]);
+    }
+  };
+
+  const replaceTrackWithFile = (trackId: string, file: File) => {
+    if (!user) return;
+    const t = tracks.find((tr) => tr.id === trackId);
+    if (!t) return;
+    enqueueUpload({ file, track: t, userId: user.id, existingVersionCount: 0 });
+  };
+
+  const onAlbumDragEnter = (e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes("Files")) return;
+    e.preventDefault();
+    dropDepth.current += 1;
+    setDropActive(true);
+  };
+  const onAlbumDragOver = (e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes("Files")) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  };
+  const onAlbumDragLeave = (e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes("Files")) return;
+    dropDepth.current = Math.max(0, dropDepth.current - 1);
+    if (dropDepth.current === 0) {
+      setDropActive(false);
+      setDropTargetTrackId(null);
+    }
+  };
+  const resetDropState = () => {
+    dropDepth.current = 0;
+    setDropActive(false);
+    setDropTargetTrackId(null);
+  };
+  const onAlbumDrop = (e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes("Files")) return;
+    e.preventDefault();
+    resetDropState();
+    const audio = Array.from(e.dataTransfer.files).filter(isAudioFile);
+    if (audio.length === 0) return;
+    void createTracksFromFiles(audio);
   };
 
   const updateAlbumStatus = async (status: AlbumStatus) => {
@@ -418,7 +493,23 @@ export default function AlbumPage() {
         </div>
       </div>
 
-      <div className="bg-panel border border-edge rounded-2xl overflow-hidden">
+      <div
+        className={`bg-panel border rounded-2xl overflow-hidden relative transition-colors ${
+          dropActive && !dropTargetTrackId ? "border-accent ring-2 ring-accent/30" : "border-edge"
+        }`}
+        onDragEnter={onAlbumDragEnter}
+        onDragOver={onAlbumDragOver}
+        onDragLeave={onAlbumDragLeave}
+        onDrop={onAlbumDrop}
+      >
+        {dropActive && !dropTargetTrackId && (
+          <div className="pointer-events-none absolute inset-0 z-10 bg-accent/10 flex items-center justify-center">
+            <div className="bg-panel/95 border border-accent rounded-xl px-4 py-2 text-sm text-white flex items-center gap-2 shadow-xl">
+              <UploadCloud size={16} className="text-accent" />
+              Drop audio to add tracks · drop on a row to add a version
+            </div>
+          </div>
+        )}
         <div className={`px-3 sm:px-5 py-3 border-b border-edge text-xs uppercase tracking-wider text-muted grid ${ROW_GRID} gap-2 sm:gap-3 items-center`}>
           <span className="hidden sm:block"></span>
           <span className="hidden sm:block">#</span>
@@ -444,6 +535,13 @@ export default function AlbumPage() {
                   onRename={(title) => renameTrack(t.id, title)}
                   onPlay={() => playTrack(t)}
                   onOpenDetails={() => setDetailsTrackId(t.id)}
+                  isDropTarget={dropTargetTrackId === t.id}
+                  onRowDragEnter={() => setDropTargetTrackId(t.id)}
+                  onRowDragLeave={() => setDropTargetTrackId((cur) => (cur === t.id ? null : cur))}
+                  onRowDrop={(file) => {
+                    resetDropState();
+                    replaceTrackWithFile(t.id, file);
+                  }}
                 />
               ))}
             </SortableContext>
@@ -501,6 +599,10 @@ function SortableTrackRow({
   onRename,
   onPlay,
   onOpenDetails,
+  isDropTarget,
+  onRowDragEnter,
+  onRowDragLeave,
+  onRowDrop,
 }: {
   track: TrackWithVersion;
   index: number;
@@ -508,6 +610,10 @@ function SortableTrackRow({
   onRename: (title: string) => void;
   onPlay: () => void;
   onOpenDetails: () => void;
+  isDropTarget: boolean;
+  onRowDragEnter: () => void;
+  onRowDragLeave: () => void;
+  onRowDrop: (file: File) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: track.id });
   const [editing, setEditing] = useState(false);
@@ -540,12 +646,43 @@ function SortableTrackRow({
     zIndex: isDragging ? 10 : "auto",
   };
 
+  const rowDepth = useRef(0);
+
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`px-3 sm:px-5 py-3 border-b border-edge last:border-b-0 grid ${ROW_GRID} gap-2 sm:gap-3 items-center group ${
-        isDragging ? "bg-panel2 shadow-lg" : "hover:bg-panel2/50"
+      onDragEnter={(e) => {
+        if (!e.dataTransfer.types.includes("Files")) return;
+        rowDepth.current += 1;
+        onRowDragEnter();
+      }}
+      onDragOver={(e) => {
+        if (!e.dataTransfer.types.includes("Files")) return;
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = "copy";
+      }}
+      onDragLeave={(e) => {
+        if (!e.dataTransfer.types.includes("Files")) return;
+        rowDepth.current = Math.max(0, rowDepth.current - 1);
+        if (rowDepth.current === 0) onRowDragLeave();
+      }}
+      onDrop={(e) => {
+        if (!e.dataTransfer.types.includes("Files")) return;
+        e.preventDefault();
+        e.stopPropagation();
+        rowDepth.current = 0;
+        onRowDragLeave();
+        const audio = Array.from(e.dataTransfer.files).find((f) => {
+          if (f.type && f.type.startsWith("audio/")) return true;
+          const ext = f.name.split(".").pop()?.toLowerCase() ?? "";
+          return ["wav", "mp3", "aiff", "aif", "flac", "m4a", "ogg", "opus", "aac", "wma"].includes(ext);
+        });
+        if (audio) onRowDrop(audio);
+      }}
+      className={`px-3 sm:px-5 py-3 border-b border-edge last:border-b-0 grid ${ROW_GRID} gap-2 sm:gap-3 items-center group transition-colors ${
+        isDragging ? "bg-panel2 shadow-lg" : isDropTarget ? "bg-accent/15 ring-1 ring-accent/40" : "hover:bg-panel2/50"
       }`}
     >
       <button

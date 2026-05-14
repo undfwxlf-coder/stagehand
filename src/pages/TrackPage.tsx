@@ -3,9 +3,10 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import type { Album, Track, Version } from "../lib/database.types";
-import { downloadAudio, getSignedAudioUrl, inferAudioMeta, inferVersionLabel, safeFilename } from "../lib/audio";
-import { decodeAudio, detectBpm, detectKey, peaksFromBuffer } from "../lib/audioAnalysis";
+import { downloadAudio, getSignedAudioUrl, safeFilename } from "../lib/audio";
+import { detectBpm, detectKey } from "../lib/audioAnalysis";
 import { usePlayer } from "../lib/player";
+import { useUploadStore, isActivePhase } from "../lib/uploads";
 import ShareModal from "../components/ShareModal";
 import { Download, Play, Share2, SlidersHorizontal, Sparkles, Trash2 } from "lucide-react";
 
@@ -16,10 +17,11 @@ export default function TrackPage() {
   const [track, setTrack] = useState<Track | null>(null);
   const [album, setAlbum] = useState<Album | null>(null);
   const [versions, setVersions] = useState<Version[]>([]);
-  const [uploading, setUploading] = useState(false);
-  const [uploadStatus, setUploadStatus] = useState<string | null>(null);
-  const [uploadErr, setUploadErr] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const enqueueUpload = useUploadStore((s) => s.enqueue);
+  const myJobs = useUploadStore((s) => s.jobs.filter((j) => j.trackId === trackId));
+  const activeJob = myJobs.find((j) => isActivePhase(j.phase)) ?? null;
+  const lastErrorJob = myJobs.find((j) => j.phase === "error") ?? null;
   const play = usePlayer((s) => s.play);
   const [shareVersion, setShareVersion] = useState<Version | null>(null);
   const [redetecting, setRedetecting] = useState(false);
@@ -58,79 +60,37 @@ export default function TrackPage() {
     };
   }, [trackId]);
 
-  const onUpload = async (file: File) => {
+  const onUpload = (file: File) => {
     if (!user || !track) return;
-    setUploading(true);
-    setUploadErr(null);
-    try {
-      setUploadStatus("Decoding audio…");
-      const audioBuffer = await decodeAudio(file);
-      const peaks = peaksFromBuffer(audioBuffer, 1024);
-      const duration = audioBuffer.duration;
-
-      // Kick off detection in parallel with the upload — we apply results after both finish.
-      setUploadStatus("Analyzing tempo and key…");
-      const detectionPromise = Promise.allSettled([
-        detectBpm(audioBuffer),
-        Promise.resolve(detectKey(audioBuffer)),
-      ]);
-
-      setUploadStatus("Uploading…");
-      const ext = (file.name.split(".").pop() || "wav").toLowerCase();
-      const path = `${user.id}/${track.id}/${Date.now()}.${ext}`;
-      const up = await supabase.storage.from("audio").upload(path, file, {
-        contentType: file.type || "audio/mpeg",
-        upsert: false,
-      });
-      if (up.error) throw up.error;
-
-      setUploadStatus("Saving…");
-      const label = inferVersionLabel(file.name, versions.length);
-      const ins = await supabase
-        .from("versions")
-        .insert({ track_id: track.id, label, storage_path: path, duration_sec: duration, peaks })
-        .select()
-        .single();
-      if (ins.error) throw ins.error;
-      const newVersion = ins.data as Version;
-
-      // Filename hints take priority over content detection (artist explicitly named it).
-      const fromFilename = inferAudioMeta(file.name);
-      const [bpmResult, keyResult] = await detectionPromise;
-      const detectedBpm = bpmResult.status === "fulfilled" ? bpmResult.value : null;
-      const detectedKeyObj = keyResult.status === "fulfilled" ? keyResult.value : null;
-      const detectedKey = detectedKeyObj?.key ?? null;
-      console.log("[upload] detected", { bpm: detectedBpm, key: detectedKey, keyConfidence: detectedKeyObj?.confidence });
-
-      const newBpm = fromFilename.bpm ?? detectedBpm;
-      const newKey = fromFilename.key ?? detectedKey;
-
-      const trackPatch: { current_version_id: string; bpm?: number; song_key?: string } = {
-        current_version_id: newVersion.id,
-      };
-      if (newBpm != null && track.bpm == null) trackPatch.bpm = newBpm;
-      if (newKey != null && !track.song_key) trackPatch.song_key = newKey;
-      console.log("[upload] applying patch", trackPatch, "(existing track.bpm:", track.bpm, ", existing track.song_key:", track.song_key, ")");
-      const updateRes = await supabase.from("tracks").update(trackPatch).eq("id", track.id);
-      if (updateRes.error) console.error("[upload] track update failed", updateRes.error);
-
-      setVersions((v) => [newVersion, ...v]);
-      setTrack({
-        ...track,
-        current_version_id: newVersion.id,
-        bpm: trackPatch.bpm ?? track.bpm,
-        song_key: trackPatch.song_key ?? track.song_key,
-      });
-      setUploadStatus(null);
-    } catch (e) {
-      console.error("[upload] failed", e);
-      setUploadErr(formatErr(e));
-      setUploadStatus(null);
-    } finally {
-      setUploading(false);
-      if (fileRef.current) fileRef.current.value = "";
-    }
+    enqueueUpload({ file, track, userId: user.id, existingVersionCount: versions.length });
+    if (fileRef.current) fileRef.current.value = "";
   };
+
+  // Subscribe to the upload store and merge completed jobs for this track into local
+  // state on the phase→"done" transition. Jobs survive navigation, so if the user
+  // returns to a track whose upload finished elsewhere, the initial fetch already
+  // includes the row — we only need to catch transitions that happen while mounted.
+  useEffect(() => {
+    if (!trackId) return;
+    const seen = new Set<string>();
+    // Seed with whatever's already "done" at mount time so we don't re-merge stale jobs.
+    for (const j of useUploadStore.getState().jobs) {
+      if (j.trackId === trackId && j.phase === "done" && j.version) {
+        seen.add(j.version.id);
+      }
+    }
+    return useUploadStore.subscribe((state) => {
+      for (const j of state.jobs) {
+        if (j.trackId !== trackId || j.phase !== "done" || !j.version) continue;
+        if (seen.has(j.version.id)) continue;
+        seen.add(j.version.id);
+        const v = j.version;
+        const p = j.trackPatch;
+        setVersions((cur) => (cur.some((x) => x.id === v.id) ? cur : [v, ...cur]));
+        if (p) setTrack((cur) => (cur ? { ...cur, ...p } : cur));
+      }
+    });
+  }, [trackId]);
 
   const redetectFromCurrent = async () => {
     if (!track) return;
@@ -289,16 +249,21 @@ export default function TrackPage() {
             />
             <button
               onClick={() => fileRef.current?.click()}
-              disabled={uploading}
-              className="bg-accent hover:bg-accent/90 disabled:opacity-60 text-white text-sm font-medium px-3 sm:px-4 py-2 rounded-lg"
+              className="bg-accent hover:bg-accent/90 text-white text-sm font-medium px-3 sm:px-4 py-2 rounded-lg"
             >
-              <span className="hidden sm:inline">{uploading ? "Uploading…" : "+ Upload version"}</span>
-              <span className="sm:hidden">{uploading ? "…" : "+ Upload"}</span>
+              <span className="hidden sm:inline">+ Upload version</span>
+              <span className="sm:hidden">+ Upload</span>
             </button>
           </div>
         </div>
-        {uploadStatus && <p className="text-sm text-muted mb-3">{uploadStatus}</p>}
-        {uploadErr && <p className="text-sm text-red-400 mb-3">{uploadErr}</p>}
+        {activeJob && (
+          <p className="text-sm text-muted mb-3">
+            {activeJob.message} <span className="text-muted/70">· {activeJob.fileName}</span>
+          </p>
+        )}
+        {lastErrorJob && !activeJob && (
+          <p className="text-sm text-red-400 mb-3">{lastErrorJob.error}</p>
+        )}
 
         {versions.length === 0 ? (
           <p className="text-sm text-muted py-6 text-center">

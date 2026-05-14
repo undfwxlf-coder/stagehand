@@ -192,9 +192,9 @@ create policy "owner manages share_links" on share_links
 -- After running this, also: Storage -> Create bucket -> name "audio", PRIVATE.
 -- Then run the storage policies below.
 
-insert into storage.buckets (id, name, public)
-values ('audio', 'audio', false)
-on conflict (id) do nothing;
+insert into storage.buckets (id, name, public, file_size_limit)
+values ('audio', 'audio', false, 1073741824)  -- 1 GiB per-file cap
+on conflict (id) do update set file_size_limit = excluded.file_size_limit;
 
 drop policy if exists "audio owner read" on storage.objects;
 create policy "audio owner read" on storage.objects
