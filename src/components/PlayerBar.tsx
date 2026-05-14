@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import WaveSurfer from "wavesurfer.js";
 import { Pause, Play, SkipBack, SkipForward, AlertTriangle } from "lucide-react";
-import { usePlayer } from "../lib/player";
+import { usePlayer, resolvePlayerUrl } from "../lib/player";
 import { fmtTime } from "../lib/audio";
 import { recordPlay } from "../lib/plays";
 
@@ -14,6 +14,7 @@ export default function PlayerBar() {
     setDuration,
     positionSec,
     durationSec,
+    queue,
     next,
     prev,
     toggle,
@@ -27,16 +28,18 @@ export default function PlayerBar() {
   const lastVersionId = useRef<string | null>(null);
   const readyRef = useRef(false);
   const wantsPlayRef = useRef(false);
+  // Hidden <audio> we point at the next queue item so the browser pre-fetches
+  // and HTTP-caches the bytes. When the current track finishes and the player
+  // advances, `ws.load(nextUrl)` reads from cache instead of re-fetching → no
+  // audible gap between tracks.
+  const preloadAudioRef = useRef<HTMLAudioElement | null>(null);
+  const preloadedVersionRef = useRef<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  // Create the wavesurfer instance exactly once. Re-mounting it on every track
+  // change introduces a setup gap; we just call `ws.load()` instead.
   useEffect(() => {
-    if (!current || !containerRef.current) return;
-    if (lastVersionId.current === current.versionId) return;
-
-    wsRef.current?.destroy();
-    readyRef.current = false;
-    setLoadError(null);
-
+    if (!containerRef.current) return;
     const ws = WaveSurfer.create({
       container: containerRef.current,
       height: 32,
@@ -77,21 +80,84 @@ export default function PlayerBar() {
     ws.on("seeking", () => setPosition(ws.getCurrentTime()));
     ws.on("play", () => {
       setPlaying(true);
-      if (current) recordPlay(current.trackId);
+      const cur = usePlayer.getState().current;
+      if (cur) recordPlay(cur.trackId);
     });
     ws.on("pause", () => setPlaying(false));
     ws.on("finish", () => next());
 
+    wsRef.current = ws;
+    return () => {
+      ws.destroy();
+      wsRef.current = null;
+    };
+    // Deliberately not depending on volume/muted — the inner closure reads them
+    // at instance-creation time; the dedicated volume effect below keeps them
+    // in sync after that. We only want this to run once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Track-change effect: just (re)load the current URL on the persistent ws.
+  useEffect(() => {
+    const ws = wsRef.current;
+    if (!ws || !current) return;
+    if (lastVersionId.current === current.versionId) return;
+    lastVersionId.current = current.versionId;
+    readyRef.current = false;
+    setLoadError(null);
     const peaks = current.peaks ? [current.peaks] : undefined;
     const duration = current.duration ?? undefined;
-    ws.load(current.audioUrl, peaks, duration).catch((e) => {
-      console.error("[player] load() rejected", e);
-      setLoadError(e instanceof Error ? e.message : String(e));
-    });
+    (async () => {
+      try {
+        const url = await resolvePlayerUrl(current);
+        await ws.load(url, peaks, duration);
+      } catch (e) {
+        console.error("[player] load() rejected", e);
+        setLoadError(e instanceof Error ? e.message : String(e));
+      }
+    })();
+  }, [current]);
 
-    wsRef.current = ws;
-    lastVersionId.current = current.versionId;
-  }, [current, next, setDuration, setPosition, setPlaying]);
+  // Preload the *next* queue item once the current track is in flight. The
+  // bytes land in the browser HTTP cache, so when the user finishes the
+  // current track, ws.load(nextUrl) is effectively instant.
+  useEffect(() => {
+    if (!current) return;
+    const idx = queue.findIndex((t) => t.versionId === current.versionId);
+    const upcoming = queue[idx + 1];
+    if (!upcoming) {
+      // Nothing to preload — clear any prior preload so we don't keep bytes
+      // alive for a queue item we're no longer about to play.
+      if (preloadAudioRef.current) {
+        preloadAudioRef.current.src = "";
+        preloadAudioRef.current = null;
+      }
+      preloadedVersionRef.current = null;
+      return;
+    }
+    if (preloadedVersionRef.current === upcoming.versionId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const url = await resolvePlayerUrl(upcoming);
+        if (cancelled) return;
+        const audio = new Audio();
+        audio.preload = "auto";
+        audio.crossOrigin = "anonymous";
+        audio.src = url;
+        // Some browsers need an explicit .load() to start the network fetch
+        // when preload="auto" — calling it is harmless if already in flight.
+        audio.load();
+        preloadAudioRef.current = audio;
+        preloadedVersionRef.current = upcoming.versionId;
+      } catch (e) {
+        console.warn("[player] preload failed", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [current, queue]);
 
   useEffect(() => {
     const ws = wsRef.current;
@@ -118,13 +184,6 @@ export default function PlayerBar() {
       ws.pause();
     }
   }, [isPlaying, setPlaying]);
-
-  useEffect(() => {
-    return () => {
-      wsRef.current?.destroy();
-      wsRef.current = null;
-    };
-  }, []);
 
   // MediaSession: title/artist/album/artwork shown in iOS Control Center & Android lock screen.
   useEffect(() => {

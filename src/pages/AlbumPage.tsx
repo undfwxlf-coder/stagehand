@@ -331,7 +331,7 @@ export default function AlbumPage() {
           versionId: tr.version!.id,
           title: tr.title,
           albumTitle: album.title,
-          audioUrl: "",
+          storagePath: tr.version!.storage_path,
           peaks: tr.version!.peaks,
           duration: tr.version!.duration_sec,
           artistName,

@@ -1,15 +1,33 @@
 import { create } from "zustand";
+import { getSignedAudioUrl } from "./audio";
 
 export interface PlayerTrack {
   trackId: string;
   versionId: string;
   title: string;
   albumTitle: string;
-  audioUrl: string;
+  // One of these must be set. `audioUrl` is a pre-signed URL (used when the
+  // listener doesn't own the audio — e.g. share-link saves). `storagePath`
+  // is a private-bucket path that the player signs on demand.
+  audioUrl?: string;
+  storagePath?: string | null;
   peaks?: number[] | null;
   duration?: number | null;
   artistName?: string | null;
   artworkUrl?: string | null;
+}
+
+// Resolves a PlayerTrack to a playable URL, caching the signed result on the
+// queue item itself so repeated reads (preload + actual load) don't re-sign.
+const signedCache = new Map<string, string>();
+export async function resolvePlayerUrl(t: PlayerTrack): Promise<string> {
+  if (t.audioUrl) return t.audioUrl;
+  if (!t.storagePath) throw new Error("Track has no audioUrl or storagePath");
+  const cached = signedCache.get(t.storagePath);
+  if (cached) return cached;
+  const url = await getSignedAudioUrl(t.storagePath);
+  signedCache.set(t.storagePath, url);
+  return url;
 }
 
 interface PlayerState {
