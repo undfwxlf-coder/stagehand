@@ -60,10 +60,12 @@ export type ShareVisibility = "link" | "invite" | "disabled";
 
 export interface ShareLink {
   id: string;
-  track_id: string;
-  version_id: string;
+  // Polymorphic: exactly one of track_id / album_id is set (DB-enforced).
+  track_id: string | null;
+  album_id: string | null;
+  version_id: string | null;
   slug: string;
-  signed_url: string;
+  signed_url: string | null;
   expires_at: string | null;
   created_at: string;
   revoked: boolean;
@@ -72,6 +74,8 @@ export interface ShareLink {
   require_account: boolean;
   single_use: boolean;
   consumed_at: string | null;
+  // Snapshot of tracks + signed URLs at share creation time (album shares only).
+  payload: unknown | null;
 }
 
 export interface ShareInvite {

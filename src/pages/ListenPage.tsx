@@ -188,7 +188,8 @@ export default function ListenPage() {
     let peaks: number[][] | undefined;
     let dur: number | undefined;
     if (data.type === "track") {
-      url = data.link.signed_url;
+      // Track shares always have a signed_url (DB-enforced via the polymorphic check).
+      url = data.link.signed_url!;
       peaks = data.version.peaks ? [data.version.peaks] : undefined;
       dur = data.version.duration_sec ?? undefined;
     } else if (activeAlbumTrack) {
@@ -238,7 +239,7 @@ export default function ListenPage() {
     try {
       const ext = (data.version.storage_path.split(".").pop() || "wav").toLowerCase();
       const filename = `${safeFilename(data.track.title)} - ${safeFilename(data.version.label)}.${ext}`;
-      await downloadAudio(data.link.signed_url, filename);
+      await downloadAudio(data.link.signed_url!, filename);
     } catch (e) {
       console.error("[download] failed", e);
       alert(formatErr(e));

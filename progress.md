@@ -209,6 +209,7 @@ A private workspace for music artists to track albums, store unreleased music, s
 - ✅ `supabase/migration_share_preview.sql` — applied. Adds `resolve_share_preview`. Idempotent.
 - ✅ `supabase/migration_editor_settings.sql` — applied. Adds `tracks.editor_settings jsonb`. Idempotent.
 - ⏳ `supabase/migration_audio_bucket_size.sql` — **needs to be run**. Raises the `audio` bucket's per-file limit to 1 GiB so artists can upload hi-res WAV/AIFF masters. **Also bump the project-level Global file size limit in Supabase Dashboard → Storage → Settings — the bucket cap can't exceed the project cap (50 MB on free tier; up to 50 GB on Pro).**
+- ⏳ `supabase/migration_polymorphic_shares_saves.sql` — **needs to be run** if a Supabase project doesn't already have polymorphic `share_links.album_id`, the `share_invites` / `saves` / `plays` tables, or the `record_play` / `list_my_saves` RPCs. These were applied to the original live DB but never committed to the repo (same gap the `list_my_saves` source-of-truth note already called out). Symptoms when missing: `column share_links.album_id does not exist (42703)` when creating an album share. Idempotent; safe to re-run.
 
 ---
 
