@@ -52,6 +52,37 @@ alter table public.share_links
 
 create index if not exists share_links_album_idx on public.share_links(album_id);
 
+-- RLS for share_links: the original policy only checked track_id ownership.
+-- Replace it with one that handles both track shares (join through tracks) and
+-- album shares (join directly on album).
+drop policy if exists "owner manages share_links" on public.share_links;
+create policy "owner manages share_links" on public.share_links
+  for all to authenticated
+  using (
+    (track_id is not null and exists (
+      select 1 from public.tracks t
+      join public.albums a on a.id = t.album_id
+      where t.id = share_links.track_id and a.owner_id = auth.uid()
+    ))
+    or
+    (album_id is not null and exists (
+      select 1 from public.albums a
+      where a.id = share_links.album_id and a.owner_id = auth.uid()
+    ))
+  )
+  with check (
+    (track_id is not null and exists (
+      select 1 from public.tracks t
+      join public.albums a on a.id = t.album_id
+      where t.id = share_links.track_id and a.owner_id = auth.uid()
+    ))
+    or
+    (album_id is not null and exists (
+      select 1 from public.albums a
+      where a.id = share_links.album_id and a.owner_id = auth.uid()
+    ))
+  );
+
 -- ============ SHARE_INVITES ============
 
 create table if not exists public.share_invites (
