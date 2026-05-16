@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+
+import { formatErr } from "../lib/errors";
 import WaveSurfer from "wavesurfer.js";
 import { Pause, Play, SkipBack, SkipForward, AlertTriangle } from "lucide-react";
 import { usePlayer, resolvePlayerUrl } from "../lib/player";
@@ -97,7 +99,7 @@ export default function PlayerBar() {
       });
       ws.on("error", (e) => {
         console.error("[player] wavesurfer error", e);
-        setLoadError(e instanceof Error ? e.message : String(e));
+        setLoadError(formatErr(e));
         setPlaying(false);
       });
       ws.on("audioprocess", () => {
@@ -150,7 +152,7 @@ export default function PlayerBar() {
         await instance.load(url, peaks, duration);
       } catch (e) {
         console.error("[player] load() rejected", e);
-        setLoadError(e instanceof Error ? e.message : String(e));
+        setLoadError(formatErr(e));
       }
     })();
   }, [current, next, setDuration, setPlaying, setPosition]);

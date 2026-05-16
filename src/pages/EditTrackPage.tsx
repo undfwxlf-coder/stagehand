@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+
+import { formatErr } from "../lib/errors";
 import { useNavigate, useParams } from "react-router-dom";
 import { Pause, Play, RotateCcw, SkipBack } from "lucide-react";
 import { supabase } from "../lib/supabase";
@@ -95,7 +97,7 @@ export default function EditTrackPage() {
         editorRef.current = editor;
         setLoadingAudio(false);
       } catch (e) {
-        if (!cancel) setError(e instanceof Error ? e.message : String(e));
+        if (!cancel) setError(formatErr(e));
       }
     })();
     return () => {

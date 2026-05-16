@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+
+import { formatErr } from "../lib/errors";
 import { useParams } from "react-router-dom";
 import WaveSurfer from "wavesurfer.js";
 import { supabase } from "../lib/supabase";
@@ -121,7 +123,7 @@ export default function ListenPage() {
         setLoading(false);
       } catch (e) {
         if (!cancel) {
-          setErr(e instanceof Error ? e.message : String(e));
+          setErr(formatErr(e));
           setLoading(false);
         }
       }
@@ -239,7 +241,7 @@ export default function ListenPage() {
       await downloadAudio(data.link.signed_url, filename);
     } catch (e) {
       console.error("[download] failed", e);
-      alert(e instanceof Error ? e.message : String(e));
+      alert(formatErr(e));
     } finally {
       setDownloading(false);
     }
@@ -259,7 +261,7 @@ export default function ListenPage() {
       setSaved((s) => !s);
     } catch (e) {
       console.error("[save] failed", e);
-      alert(e instanceof Error ? e.message : String(e));
+      alert(formatErr(e));
     } finally {
       setSavingState(false);
     }

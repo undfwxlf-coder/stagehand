@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+
+import { formatErr } from "../lib/errors";
 import { Link } from "react-router-dom";
 import {
   listMySaves,
@@ -40,7 +42,7 @@ export default function SavedPage() {
         }
         setAllowDownload(map);
       })
-      .catch((e) => !cancel && setErr(e instanceof Error ? e.message : String(e)))
+      .catch((e) => !cancel && setErr(formatErr(e)))
       .finally(() => !cancel && setLoading(false));
     return () => { cancel = true; };
   }, []);
@@ -59,7 +61,7 @@ export default function SavedPage() {
       await downloadAudio(item.share_signed_url, filename);
     } catch (e) {
       console.error("[saved-download] failed", e);
-      alert(e instanceof Error ? e.message : String(e));
+      alert(formatErr(e));
     } finally {
       setDownloadingId(null);
     }

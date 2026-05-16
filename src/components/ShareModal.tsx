@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+
+import { formatErr } from "../lib/errors";
 import { X } from "lucide-react";
 import type { Track, Version, ShareLink, ShareInvite, ShareVisibility } from "../lib/database.types";
 import {
@@ -39,7 +41,7 @@ export default function ShareModal({
       .then((rows) => !cancel && setLinks(rows))
       .catch((e) => {
         console.error("[share] list failed", e);
-        if (!cancel) setErr(e instanceof Error ? e.message : String(e));
+        if (!cancel) setErr(formatErr(e));
       })
       .finally(() => !cancel && setLoading(false));
     return () => { cancel = true; };
@@ -65,7 +67,7 @@ export default function ShareModal({
       setInviteText("");
     } catch (e) {
       console.error("[share] create failed", e);
-      setErr(e instanceof Error ? e.message : String(e));
+      setErr(formatErr(e));
     } finally {
       setCreating(false);
     }
@@ -77,19 +79,19 @@ export default function ShareModal({
   const onRevoke = async (id: string) => {
     if (!confirm("Revoke this link? Anyone with the URL will lose access immediately.")) return;
     updateLocal(id, { revoked: true });
-    try { await revokeShareLink(id); } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
+    try { await revokeShareLink(id); } catch (e) { setErr(formatErr(e)); }
   };
 
   const onChangeVisibility = async (id: string, v: ShareVisibility) => {
     const patch: Partial<ShareLink> = { visibility: v };
     if (v === "invite") patch.require_account = true;
     updateLocal(id, patch);
-    try { await updateShareLink(id, patch); } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
+    try { await updateShareLink(id, patch); } catch (e) { setErr(formatErr(e)); }
   };
 
   const onChangeRequireAccount = async (id: string, val: boolean) => {
     updateLocal(id, { require_account: val });
-    try { await updateShareLink(id, { require_account: val }); } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
+    try { await updateShareLink(id, { require_account: val }); } catch (e) { setErr(formatErr(e)); }
   };
 
   return (
@@ -389,7 +391,7 @@ function InviteList({ shareLinkId }: { shareLinkId: string }) {
       });
       setDraft("");
     } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
+      setErr(formatErr(e));
     } finally {
       setBusy(false);
     }
@@ -397,7 +399,7 @@ function InviteList({ shareLinkId }: { shareLinkId: string }) {
 
   const onRemove = async (id: string) => {
     setItems((it) => it.filter((i) => i.id !== id));
-    try { await removeInvite(id); } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
+    try { await removeInvite(id); } catch (e) { setErr(formatErr(e)); }
   };
 
   return (

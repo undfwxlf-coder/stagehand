@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+
+import { formatErr } from "../lib/errors";
 import { X } from "lucide-react";
 import type { Album, ShareInvite, ShareLink, ShareVisibility } from "../lib/database.types";
 import {
@@ -36,7 +38,7 @@ export default function AlbumShareModal({
       .then((rows) => !cancel && setLinks(rows))
       .catch((e) => {
         console.error("[albumshare] list failed", e);
-        if (!cancel) setErr(e instanceof Error ? e.message : String(e));
+        if (!cancel) setErr(formatErr(e));
       })
       .finally(() => !cancel && setLoading(false));
     return () => { cancel = true; };
@@ -56,7 +58,7 @@ export default function AlbumShareModal({
       setInviteText("");
     } catch (e) {
       console.error("[albumshare] create failed", e);
-      setErr(e instanceof Error ? e.message : String(e));
+      setErr(formatErr(e));
     } finally {
       setCreating(false);
     }
@@ -68,19 +70,19 @@ export default function AlbumShareModal({
   const onRevoke = async (id: string) => {
     if (!confirm("Revoke this album link? Anyone with the URL loses access immediately.")) return;
     updateLocal(id, { revoked: true });
-    try { await revokeShareLink(id); } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
+    try { await revokeShareLink(id); } catch (e) { setErr(formatErr(e)); }
   };
 
   const onChangeVisibility = async (id: string, v: ShareVisibility) => {
     const patch: Partial<ShareLink> = { visibility: v };
     if (v === "invite") patch.require_account = true;
     updateLocal(id, patch);
-    try { await updateShareLink(id, patch); } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
+    try { await updateShareLink(id, patch); } catch (e) { setErr(formatErr(e)); }
   };
 
   const onChangeRequireAccount = async (id: string, val: boolean) => {
     updateLocal(id, { require_account: val });
-    try { await updateShareLink(id, { require_account: val }); } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
+    try { await updateShareLink(id, { require_account: val }); } catch (e) { setErr(formatErr(e)); }
   };
 
   return (
@@ -295,13 +297,13 @@ function InviteList({ shareLinkId }: { shareLinkId: string }) {
       setItems((it) => it.some((i) => i.email === next.email) ? it : [...it, next]);
       setDraft("");
     } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
+      setErr(formatErr(e));
     } finally { setBusy(false); }
   };
 
   const onRemove = async (id: string) => {
     setItems((it) => it.filter((i) => i.id !== id));
-    try { await removeInvite(id); } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
+    try { await removeInvite(id); } catch (e) { setErr(formatErr(e)); }
   };
 
   return (

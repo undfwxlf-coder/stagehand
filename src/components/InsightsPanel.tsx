@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+
+import { formatErr } from "../lib/errors";
 import { supabase } from "../lib/supabase";
 import type { Play, Save } from "../lib/database.types";
 
@@ -83,7 +85,7 @@ export default function InsightsPanel({ trackId, ownerId }: { trackId: string; o
         }
       } catch (e) {
         if (!cancel) {
-          setErr(e instanceof Error ? e.message : String(e));
+          setErr(formatErr(e));
           setLoading(false);
         }
       }

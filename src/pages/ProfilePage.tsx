@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+
+import { formatErr } from "../lib/errors";
 import { Link } from "react-router-dom";
 import {
   ArrowLeft,
@@ -92,7 +94,7 @@ export default function ProfilePage() {
           setNameDraft(fallbackName);
         }
       })
-      .catch((e) => setErr(e instanceof Error ? e.message : String(e)))
+      .catch((e) => setErr(formatErr(e)))
       .finally(() => alive && setLoading(false));
     return () => {
       alive = false;
@@ -114,7 +116,7 @@ export default function ProfilePage() {
       setProfile(updated);
       setStoreProfile(updated);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
+      setErr(formatErr(e));
     } finally {
       setUploadingAvatar(false);
       if (fileRef.current) fileRef.current.value = "";
@@ -136,7 +138,7 @@ export default function ProfilePage() {
       await supabase.auth.updateUser({ data: { artist_name: trimmed } });
       setEditing(false);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
+      setErr(formatErr(e));
     } finally {
       setSavingName(false);
     }

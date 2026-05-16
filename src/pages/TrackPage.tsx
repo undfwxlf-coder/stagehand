@@ -4,6 +4,7 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import type { Album, Track, Version } from "../lib/database.types";
 import { downloadAudio, getSignedAudioUrl, safeFilename } from "../lib/audio";
+import { formatErr } from "../lib/errors";
 import { detectBpm, detectKey } from "../lib/audioAnalysis";
 import { usePlayer } from "../lib/player";
 import { useUploadStore, isActivePhase } from "../lib/uploads";
@@ -382,23 +383,6 @@ function TrackMetaStrip({
       />
     </div>
   );
-}
-
-function formatErr(e: unknown): string {
-  if (e instanceof Error) return e.message;
-  if (typeof e === "string") return e;
-  if (e && typeof e === "object") {
-    const obj = e as { message?: unknown; error_description?: unknown; error?: unknown; details?: unknown; hint?: unknown; code?: unknown };
-    const parts = [obj.message, obj.error_description, obj.error, obj.details, obj.hint]
-      .filter((x) => typeof x === "string" && x.length > 0) as string[];
-    if (parts.length) return obj.code ? `${parts[0]} (${String(obj.code)})` : parts[0];
-    try {
-      return JSON.stringify(e);
-    } catch {
-      return "Unknown error";
-    }
-  }
-  return String(e);
 }
 
 function MetaField({

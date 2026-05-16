@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { supabase } from "./supabase";
 import { decodeAudio, detectBpm, detectKey, peaksFromBuffer } from "./audioAnalysis";
 import { inferAudioMeta, inferVersionLabel } from "./audio";
+import { formatErr } from "./errors";
 import type { Track, Version } from "./database.types";
 
 export type UploadPhase =
@@ -91,19 +92,6 @@ async function uploadWithProgress(
 
 function newId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function formatErr(e: unknown): string {
-  if (e instanceof Error) return e.message;
-  if (typeof e === "string") return e;
-  if (e && typeof e === "object") {
-    const obj = e as { message?: unknown; error_description?: unknown; details?: unknown; code?: unknown };
-    const parts = [obj.message, obj.error_description, obj.details]
-      .filter((x) => typeof x === "string" && x.length > 0) as string[];
-    if (parts.length) return obj.code ? `${parts[0]} (${String(obj.code)})` : parts[0];
-    try { return JSON.stringify(e); } catch { return "Unknown error"; }
-  }
-  return String(e);
 }
 
 export const useUploadStore = create<UploadState>((set, get) => ({

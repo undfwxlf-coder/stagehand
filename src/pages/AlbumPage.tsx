@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+
+import { formatErr } from "../lib/errors";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   DndContext,
@@ -311,7 +313,7 @@ export default function AlbumPage() {
       if (error) throw error;
       setAlbum({ ...album, artwork_url: url });
     } catch (e) {
-      setArtErr(e instanceof Error ? e.message : String(e));
+      setArtErr(formatErr(e));
     } finally {
       setUploadingArt(false);
       if (artFileRef.current) artFileRef.current.value = "";
