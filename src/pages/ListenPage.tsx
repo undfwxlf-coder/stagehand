@@ -295,7 +295,7 @@ export default function ListenPage() {
             href="/"
             className="text-xs text-muted hover:text-white"
           >
-            stagehand.app
+            Stagehand
           </a>
         </div>
       </header>

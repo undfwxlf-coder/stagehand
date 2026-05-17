@@ -2,7 +2,7 @@
 
 A private workspace for music artists to track albums, store unreleased music, share with collaborators, listen anywhere, and edit a track's playback (speed/pitch/EQ/FX) before deciding it's ready. Public web app, mobile-first, deployed on Netlify.
 
-- **Live**: https://stagehand1.netlify.app *(currently returning 404 — see "Netlify deploys stuck" under tracked bugs)*
+- **Live**: https://stagehandstudio.netlify.app
 - **Repo**: https://github.com/undfwxlf-coder/stagehand (private)
 - **Supabase project**: `ccsewcccfgqofvxsavne`
 
@@ -220,9 +220,6 @@ A private workspace for music artists to track albums, store unreleased music, s
 ---
 
 ## Currently-tracked bugs / known limitations
-
-### Netlify deploys stuck (current blocker)
-`https://stagehand1.netlify.app/` is returning 404 across all recent commits. Locally the build is clean (`npm run build` succeeds) and GitHub has every commit. The site itself isn't being served by Netlify — likely an account-side issue (free-tier bandwidth cap hit, site paused, GitHub integration unlinked, etc.). Empty-commit pushes haven't triggered a rebuild. **Fix from the Netlify dashboard**: check the Deploys tab on `stagehand1`, confirm whether recent commits are showing as building/published/failed, manually trigger a deploy or restore the site from "Stopped" state if necessary. Verify Site settings → Build & deploy hasn't gone "Auto publishing off". Cannot be fixed from here without Netlify auth.
 
 ### Schema/repo gaps for polymorphic shares + saves + plays
 The original polymorphic-shares migration (and `share_invites`, `saves`, `plays` tables, plus `record_play` and `list_my_saves` RPCs) was applied to the live DB at some point but never committed to the repo. A fresh Supabase project — or any project that ever lost those tables — hits `column share_links.album_id does not exist (42703)` on album share, then `new row violates row-level security policy ... (42501)` once the columns exist but the RLS policy still only handles track shares. **Resolved going forward** by `supabase/migration_polymorphic_shares_saves.sql`, which is now in the repo and needs to be run on any project missing the polymorphic layer.
