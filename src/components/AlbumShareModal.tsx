@@ -1,10 +1,18 @@
-import { useEffect, useState } from "react";
-
+import { useEffect, useRef, useState } from "react";
+import {
+  ChevronsUpDown,
+  Globe,
+  Link as LinkIcon,
+  Lock,
+  RotateCcw,
+  Share2,
+  ShoppingBag,
+  Users,
+  X,
+} from "lucide-react";
 import { formatErr } from "../lib/errors";
-import { X } from "lucide-react";
 import type { Album, ShareInvite, ShareLink, ShareVisibility } from "../lib/database.types";
 import {
-  SHARE_DURATIONS,
   addInvite,
   createAlbumShareLink,
   listAlbumShareLinks,
@@ -15,6 +23,30 @@ import {
   updateShareLink,
 } from "../lib/share";
 
+type UIVisibility = "private" | "invite" | "public" | "paid";
+
+interface VisOption {
+  id: UIVisibility;
+  label: string;
+  sub: string;
+  icon: React.ReactNode;
+  soon?: boolean;
+}
+
+const VIS_OPTIONS: VisOption[] = [
+  { id: "private", label: "Private", sub: "Only you", icon: <Lock size={16} /> },
+  { id: "invite", label: "Invite Only", sub: "Invite people directly", icon: <Users size={16} /> },
+  { id: "public", label: "Public", sub: "Anyone with the link", icon: <Globe size={16} /> },
+  { id: "paid", label: "Paid", sub: "Only people who pay", icon: <ShoppingBag size={16} />, soon: true },
+];
+
+function uiVisFor(link: ShareLink | null): UIVisibility {
+  if (!link || link.revoked) return "private";
+  if (link.visibility === "disabled") return "private";
+  if (link.visibility === "invite") return "invite";
+  return "public";
+}
+
 export default function AlbumShareModal({
   album,
   onClose,
@@ -22,261 +54,428 @@ export default function AlbumShareModal({
   album: Album;
   onClose: () => void;
 }) {
-  const [links, setLinks] = useState<ShareLink[]>([]);
+  const [link, setLink] = useState<ShareLink | null>(null);
   const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [duration, setDuration] = useState(SHARE_DURATIONS[1].seconds);
-  const [visibility, setVisibility] = useState<ShareVisibility>("link");
-  const [requireAccount, setRequireAccount] = useState(false);
-  const [singleUse, setSingleUse] = useState(false);
-  const [inviteText, setInviteText] = useState("");
+  const [vizPickerOpen, setVizPickerOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [inviteCount, setInviteCount] = useState(0);
+  const pickerWrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancel = false;
     listAlbumShareLinks(album.id)
-      .then((rows) => !cancel && setLinks(rows))
-      .catch((e) => {
-        console.error("[albumshare] list failed", e);
-        if (!cancel) setErr(formatErr(e));
+      .then((rows) => {
+        if (cancel) return;
+        const active = rows.find((l) => !l.revoked) ?? null;
+        setLink(active);
+        setLoading(false);
       })
-      .finally(() => !cancel && setLoading(false));
-    return () => { cancel = true; };
+      .catch((e) => {
+        if (!cancel) {
+          setErr(formatErr(e));
+          setLoading(false);
+        }
+      });
+    return () => {
+      cancel = true;
+    };
   }, [album.id]);
 
-  const onCreate = async () => {
-    setCreating(true);
+  // Re-fetch invite count whenever the active link changes to an invite link
+  useEffect(() => {
+    if (!link || link.visibility !== "invite") {
+      setInviteCount(0);
+      return;
+    }
+    let cancel = false;
+    listInvites(link.id)
+      .then((rows) => !cancel && setInviteCount(rows.length))
+      .catch(() => { /* silent */ });
+    return () => { cancel = true; };
+  }, [link]);
+
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (vizPickerOpen) setVizPickerOpen(false);
+      else onClose();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose, vizPickerOpen]);
+
+  // Click outside the visibility picker closes it
+  useEffect(() => {
+    if (!vizPickerOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (pickerWrapRef.current && !pickerWrapRef.current.contains(e.target as Node)) {
+        setVizPickerOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [vizPickerOpen]);
+
+  const uiViz = uiVisFor(link);
+  const currentOpt = VIS_OPTIONS.find((o) => o.id === uiViz) ?? VIS_OPTIONS[0];
+
+  const setVisibility = async (next: UIVisibility) => {
+    setVizPickerOpen(false);
+    if (next === "paid" || next === uiViz) return;
+    setBusy(true);
     setErr(null);
     try {
-      const inviteEmails = visibility === "invite"
-        ? inviteText.split(/[\s,;]+/).map((e) => e.trim()).filter(Boolean)
-        : [];
-      const link = await createAlbumShareLink({
-        albumId: album.id, expiresInSec: duration, visibility, requireAccount, singleUse, inviteEmails,
-      });
-      setLinks((ls) => [link, ...ls]);
-      setInviteText("");
+      if (next === "private") {
+        if (link && !link.revoked) await revokeShareLink(link.id);
+        setLink(null);
+        return;
+      }
+      const dbViz: ShareVisibility = next === "invite" ? "invite" : "link";
+      if (!link || link.revoked) {
+        const created = await createAlbumShareLink({
+          albumId: album.id,
+          expiresInSec: 0,
+          visibility: dbViz,
+          requireAccount: dbViz === "invite",
+          singleUse: false,
+          inviteEmails: [],
+        });
+        setLink(created);
+      } else if (link.visibility !== dbViz) {
+        const patch: Partial<ShareLink> = { visibility: dbViz };
+        if (dbViz === "invite") patch.require_account = true;
+        await updateShareLink(link.id, patch);
+        setLink({ ...link, ...patch });
+      }
     } catch (e) {
-      console.error("[albumshare] create failed", e);
       setErr(formatErr(e));
     } finally {
-      setCreating(false);
+      setBusy(false);
     }
   };
 
-  const updateLocal = (id: string, patch: Partial<ShareLink>) =>
-    setLinks((ls) => ls.map((l) => (l.id === id ? { ...l, ...patch } : l)));
-
-  const onRevoke = async (id: string) => {
-    if (!confirm("Revoke this album link? Anyone with the URL loses access immediately.")) return;
-    updateLocal(id, { revoked: true });
-    try { await revokeShareLink(id); } catch (e) { setErr(formatErr(e)); }
+  const setRequireAccount = async (val: boolean) => {
+    if (!link) return;
+    const prev = link.require_account;
+    setLink({ ...link, require_account: val });
+    try {
+      await updateShareLink(link.id, { require_account: val });
+    } catch (e) {
+      setLink({ ...link, require_account: prev });
+      setErr(formatErr(e));
+    }
   };
 
-  const onChangeVisibility = async (id: string, v: ShareVisibility) => {
-    const patch: Partial<ShareLink> = { visibility: v };
-    if (v === "invite") patch.require_account = true;
-    updateLocal(id, patch);
-    try { await updateShareLink(id, patch); } catch (e) { setErr(formatErr(e)); }
+  const resetLink = async () => {
+    if (!link) return;
+    const ok = window.confirm(
+      "Reset project link? The current link stops working immediately and a fresh one is created with the same settings."
+    );
+    if (!ok) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const oldViz = link.visibility;
+      const oldReqAcct = link.require_account;
+      await revokeShareLink(link.id);
+      const created = await createAlbumShareLink({
+        albumId: album.id,
+        expiresInSec: 0,
+        visibility: oldViz,
+        requireAccount: oldReqAcct,
+        singleUse: false,
+        inviteEmails: [],
+      });
+      setLink(created);
+    } catch (e) {
+      setErr(formatErr(e));
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const onChangeRequireAccount = async (id: string, val: boolean) => {
-    updateLocal(id, { require_account: val });
-    try { await updateShareLink(id, { require_account: val }); } catch (e) { setErr(formatErr(e)); }
+  const makePrivate = async () => {
+    if (!link || link.revoked) return;
+    const ok = window.confirm(
+      "Make this project private? The current link stops working immediately."
+    );
+    if (!ok) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      await revokeShareLink(link.id);
+      setLink(null);
+    } catch (e) {
+      setErr(formatErr(e));
+    } finally {
+      setBusy(false);
+    }
   };
+
+  const onCopy = async () => {
+    if (!link) return;
+    try {
+      await navigator.clipboard.writeText(shareUrlFor(link.slug));
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      setErr("Couldn't copy");
+    }
+  };
+
+  const onShare = async () => {
+    if (!link) return;
+    const url = shareUrlFor(link.slug);
+    const nav = navigator as Navigator & { share?: (data: ShareData) => Promise<void> };
+    if (nav.share) {
+      try {
+        await nav.share({ title: album.title, url });
+      } catch {
+        // user cancelled
+      }
+    } else {
+      await onCopy();
+    }
+  };
+
+  const hasLink = Boolean(link && !link.revoked);
+  const accessSummary = (() => {
+    if (loading) return "…";
+    if (!hasLink) return "No one";
+    if (uiViz === "public") return "Anyone with the link";
+    if (uiViz === "invite") return inviteCount === 0
+      ? "No invitees yet"
+      : `${inviteCount} ${inviteCount === 1 ? "invitee" : "invitees"}`;
+    return "—";
+  })();
 
   return (
     <div
       className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
       onClick={onClose}
     >
-      <div onClick={(e) => e.stopPropagation()} className="bg-panel border-t sm:border border-edge w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl shadow-xl max-h-[90vh] flex flex-col">
-        <div className="px-5 py-4 border-b border-edge flex items-center justify-between shrink-0">
-          <div className="min-w-0">
-            <div className="text-sm uppercase tracking-wider text-muted">Share album</div>
-            <div className="text-white font-medium truncate">{album.title}</div>
-            <div className="text-xs text-muted">Whole album, current versions of each track</div>
-          </div>
-          <button onClick={onClose} aria-label="Close" className="text-muted hover:text-white px-2 py-1 -m-1 flex items-center justify-center"><X size={18} /></button>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-panel border-t sm:border border-edge w-full sm:max-w-md max-h-[92vh] flex flex-col rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden"
+        style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+      >
+        <div className="sm:hidden flex justify-center pt-2.5 pb-1 shrink-0">
+          <div className="w-9 h-1 rounded-full bg-edge" />
         </div>
 
-        <div className="px-5 py-4 border-b border-edge shrink-0 space-y-3">
-          <Field label="Who can listen">
-            <div className="grid grid-cols-3 gap-1 bg-ink p-1 rounded-lg">
-              <Seg active={visibility === "link"} onClick={() => setVisibility("link")}>Anyone with link</Seg>
-              <Seg active={visibility === "invite"} onClick={() => setVisibility("invite")}>Invite only</Seg>
-              <Seg active={visibility === "disabled"} onClick={() => setVisibility("disabled")}>Disabled</Seg>
-            </div>
-          </Field>
+        {/* Header */}
+        <div className="px-5 pt-3 sm:pt-5 pb-4 flex items-center gap-3 shrink-0">
+          <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-panel2 to-ink border border-edge overflow-hidden flex items-center justify-center shrink-0">
+            {album.artwork_url ? (
+              <img src={album.artwork_url} alt="" className="w-full h-full object-cover" />
+            ) : null}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-lg font-semibold text-white truncate">{album.title}</div>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="w-9 h-9 rounded-lg bg-panel2 border border-edge text-white hover:bg-edge/60 flex items-center justify-center shrink-0"
+          >
+            <X size={16} />
+          </button>
+        </div>
 
-          {visibility === "link" && (
-            <Field label="">
-              <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm text-white">
-                  <input type="checkbox" checked={requireAccount} onChange={(e) => setRequireAccount(e.target.checked)} className="w-4 h-4 accent-accent" />
-                  Require listener to have a Stagehand account
-                </label>
-                <label className="flex items-start gap-2 text-sm text-white">
-                  <input type="checkbox" checked={singleUse} onChange={(e) => setSingleUse(e.target.checked)} className="w-4 h-4 mt-0.5 accent-accent" />
-                  <span>
-                    Single-use link
-                    <span className="block text-xs text-muted">Only the first person to open it gets in. Refreshing locks them out.</span>
-                  </span>
-                </label>
-              </div>
-            </Field>
-          )}
-
-          {visibility === "invite" && (
-            <Field label="Invite emails (one per line or comma-separated)">
-              <textarea
-                value={inviteText}
-                onChange={(e) => setInviteText(e.target.value)}
-                placeholder="manager@label.com&#10;producer@studio.com"
-                rows={3}
-                className="w-full bg-ink border border-edge focus:border-accent focus:outline-none rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted"
-              />
-            </Field>
-          )}
-
-          <div className="flex items-center gap-2">
-            <select
-              value={duration}
-              onChange={(e) => setDuration(parseInt(e.target.value))}
-              className="bg-ink border border-edge rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent"
-            >
-              {SHARE_DURATIONS.map((d) => (
-                <option key={d.seconds} value={d.seconds}>
-                  {d.seconds === 0 ? "Never expires" : `Expires in ${d.label}`}
-                </option>
-              ))}
-            </select>
+        {/* Scrollable body */}
+        <div className="flex-1 overflow-y-auto px-4 pb-4 min-h-0">
+          {/* Visibility dropdown */}
+          <div className="relative mb-4" ref={pickerWrapRef}>
             <button
-              onClick={onCreate}
-              disabled={creating || (visibility === "invite" && !inviteText.trim())}
-              className="bg-accent hover:bg-accent/90 disabled:opacity-60 text-white text-sm font-medium px-4 py-2 rounded-lg shrink-0"
+              onClick={() => setVizPickerOpen((v) => !v)}
+              disabled={busy || loading}
+              className="w-full bg-panel2 border border-edge rounded-xl px-4 py-3.5 flex items-center gap-3 text-left hover:border-accent/60 transition disabled:opacity-60"
             >
-              {creating ? "Creating…" : "Create link"}
+              <span className="text-white shrink-0">{currentOpt.icon}</span>
+              <span className="text-sm font-medium text-white flex-1">{currentOpt.label}</span>
+              <ChevronsUpDown size={16} className="text-muted shrink-0" />
+            </button>
+
+            {vizPickerOpen && (
+              <div className="absolute inset-x-0 top-0 z-10 bg-panel border border-edge rounded-xl shadow-2xl overflow-hidden">
+                {VIS_OPTIONS.map((opt) => {
+                  const selected = opt.id === uiViz;
+                  return (
+                    <button
+                      key={opt.id}
+                      onClick={() => setVisibility(opt.id)}
+                      disabled={opt.soon || busy}
+                      className={`w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-panel2 disabled:cursor-not-allowed transition border-b border-edge last:border-b-0 ${
+                        selected ? "bg-panel2/60" : ""
+                      } ${opt.soon ? "opacity-50" : ""}`}
+                    >
+                      <span className="w-6 h-6 flex items-center justify-center text-white shrink-0">
+                        {opt.icon}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-white flex items-center gap-2">
+                          {opt.label}
+                          {opt.soon && <SoonBadge />}
+                        </div>
+                        <div className="text-xs text-muted">{opt.sub}</div>
+                      </div>
+                      <span
+                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                          selected ? "border-white bg-white" : "border-edge"
+                        }`}
+                      >
+                        {selected && <span className="w-1.5 h-1.5 rounded-full bg-ink" />}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Who has access */}
+          <div className="mb-5 rounded-xl bg-panel2 border border-edge px-4 py-3.5 flex items-center gap-3">
+            <div className="text-sm font-medium text-white flex-1">Who has access</div>
+            <div className="text-xs text-muted truncate max-w-[60%] text-right">{accessSummary}</div>
+          </div>
+
+          {/* Invite list — only shown when Invite Only is selected */}
+          {uiViz === "invite" && link && (
+            <div className="mb-5">
+              <div className="mb-2 text-sm font-medium text-white">Invitees</div>
+              <InlineInviteList shareLinkId={link.id} onCountChange={setInviteCount} />
+            </div>
+          )}
+
+          {/* Settings */}
+          <div className="mb-2 text-base font-semibold text-white">Settings</div>
+          <div className="mb-4 rounded-xl bg-panel2 border border-edge overflow-hidden divide-y divide-edge">
+            <ToggleRow title="Allow editing" sub="Can edit and add tracks" checked={false} onChange={() => {}} soon />
+            <ToggleRow title="Allow downloads" sub="Can export audio" checked={false} onChange={() => {}} soon />
+            <ToggleRow
+              title="Require account"
+              sub={uiViz === "invite" ? "Always on for invite-only" : "Limit to Stagehand users"}
+              checked={Boolean(link?.require_account)}
+              onChange={setRequireAccount}
+              disabled={!hasLink || uiViz === "invite" || uiViz === "private"}
+            />
+          </div>
+
+          {/* Reset / Make private */}
+          <div className="rounded-xl bg-panel2 border border-edge overflow-hidden divide-y divide-edge">
+            <button
+              onClick={resetLink}
+              disabled={!hasLink || busy}
+              className="w-full px-4 py-3.5 flex items-center gap-3 text-left hover:bg-edge/40 disabled:opacity-40 disabled:cursor-not-allowed transition"
+            >
+              <RotateCcw size={16} className="text-muted shrink-0" />
+              <span className="text-sm text-white flex-1">Reset project link</span>
+            </button>
+            <button
+              onClick={makePrivate}
+              disabled={!hasLink || busy}
+              className="w-full px-4 py-3.5 flex items-center gap-3 text-left hover:bg-edge/40 disabled:opacity-40 disabled:cursor-not-allowed transition text-red-400"
+            >
+              <Lock size={16} className="shrink-0" />
+              <span className="text-sm flex-1">Make project private</span>
             </button>
           </div>
-          {err && <p className="text-sm text-red-400">{err}</p>}
+
+          {err && <p className="text-sm text-red-400 mt-3">{err}</p>}
         </div>
 
-        <div className="flex-1 overflow-y-auto scrollbar-thin">
-          {loading ? (
-            <p className="text-sm text-muted text-center py-8">Loading…</p>
-          ) : links.length === 0 ? (
-            <p className="text-sm text-muted text-center py-8">No album share links yet.</p>
-          ) : (
-            <ul className="divide-y divide-edge">
-              {links.map((l) => (
-                <ShareRow
-                  key={l.id}
-                  link={l}
-                  onRevoke={() => onRevoke(l.id)}
-                  onChangeVisibility={(v) => onChangeVisibility(l.id, v)}
-                  onChangeRequireAccount={(val) => onChangeRequireAccount(l.id, val)}
-                />
-              ))}
-            </ul>
-          )}
+        {/* Sticky bottom action bar */}
+        <div className="border-t border-edge px-4 py-3 flex items-center gap-2 bg-panel shrink-0">
+          <button
+            onClick={onCopy}
+            disabled={!hasLink || busy}
+            className="flex-1 bg-white text-ink rounded-full py-3 font-medium text-sm flex items-center justify-center gap-2 hover:opacity-90 disabled:opacity-50 transition"
+          >
+            <LinkIcon size={16} />
+            {copied ? "Copied!" : "Copy link"}
+          </button>
+          <button
+            onClick={onShare}
+            disabled={!hasLink || busy}
+            className="flex-1 bg-panel2 border border-edge text-white rounded-full py-3 font-medium text-sm flex items-center justify-center gap-2 hover:bg-edge/40 disabled:opacity-50 transition"
+          >
+            <Share2 size={16} />
+            Share
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function SoonBadge() {
   return (
-    <label className="block">
-      {label && <span className="block text-xs uppercase tracking-wider text-muted mb-1.5">{label}</span>}
-      {children}
-    </label>
+    <span className="text-[10px] uppercase tracking-wider bg-edge text-muted px-1.5 py-0.5 rounded">
+      Soon
+    </span>
   );
 }
 
-function Seg({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button type="button" onClick={onClick} className={`text-xs sm:text-sm py-1.5 rounded-md transition ${active ? "bg-panel2 text-white" : "text-muted hover:text-white"}`}>
-      {children}
-    </button>
-  );
-}
-
-function ShareRow({
-  link, onRevoke, onChangeVisibility, onChangeRequireAccount,
+function ToggleRow({
+  title,
+  sub,
+  checked,
+  onChange,
+  disabled,
+  soon,
 }: {
-  link: ShareLink;
-  onRevoke: () => void;
-  onChangeVisibility: (v: ShareVisibility) => void;
-  onChangeRequireAccount: (val: boolean) => void;
+  title: string;
+  sub?: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+  soon?: boolean;
 }) {
-  const [copied, setCopied] = useState(false);
-  const [showInvites, setShowInvites] = useState(false);
-  const url = shareUrlFor(link.slug);
-  const expired = link.expires_at != null && new Date(link.expires_at).getTime() < Date.now();
-  const consumed = link.single_use && link.consumed_at != null;
-  const status = link.revoked ? "Revoked" : expired ? "Expired" : consumed ? "Used" : link.visibility === "disabled" ? "Disabled" : "Active";
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      window.prompt("Copy this link:", url);
-    }
-  };
-
+  const locked = disabled || soon;
   return (
-    <li className="px-5 py-3 space-y-2">
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded ${status === "Active" ? "bg-emerald-500/20 text-emerald-300" : "bg-slate-500/20 text-slate-300"}`}>{status}</span>
-        <span className="text-xs text-muted">
-          {status === "Active"
-            ? link.expires_at
-              ? `Expires ${new Date(link.expires_at).toLocaleDateString()}`
-              : "Never expires"
-            : `Created ${new Date(link.created_at).toLocaleDateString()}`}
-        </span>
-        {link.single_use && (
-          <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/15 text-amber-300">Single-use</span>
-        )}
-        <span className="text-xs text-muted">· {link.play_count} {link.play_count === 1 ? "listen" : "listens"}</span>
-      </div>
-
-      <div className="flex items-center gap-2">
-        <input readOnly value={url} onFocus={(e) => e.currentTarget.select()} className="flex-1 min-w-0 bg-ink border border-edge rounded-lg px-3 py-2 text-xs text-white font-mono truncate" />
-        <button onClick={copy} disabled={status !== "Active"} className="bg-panel2 hover:bg-edge disabled:opacity-40 text-white text-xs font-medium px-3 py-2 rounded-lg shrink-0">{copied ? "Copied!" : "Copy"}</button>
-      </div>
-
-      {!link.revoked && !expired && (
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          <select value={link.visibility} onChange={(e) => onChangeVisibility(e.target.value as ShareVisibility)} className="bg-ink border border-edge rounded px-2 py-1 text-white focus:outline-none focus:border-accent">
-            <option value="link">Anyone with link</option>
-            <option value="invite">Invite only</option>
-            <option value="disabled">Disabled</option>
-          </select>
-          {link.visibility === "link" && (
-            <label className="flex items-center gap-1.5 text-muted">
-              <input type="checkbox" checked={link.require_account} onChange={(e) => onChangeRequireAccount(e.target.checked)} className="w-3.5 h-3.5 accent-accent" />
-              Require sign-in
-            </label>
-          )}
-          {link.visibility === "invite" && (
-            <button onClick={() => setShowInvites((v) => !v)} className="text-accent hover:underline">{showInvites ? "Hide invites" : "Manage invites"}</button>
-          )}
-          <span className="flex-1" />
-          <button onClick={onRevoke} className="text-muted hover:text-red-400">Revoke</button>
+    <div className={`px-4 py-3.5 flex items-center gap-3 ${locked ? "opacity-60" : ""}`}>
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-medium text-white flex items-center gap-2">
+          {title}
+          {soon && <SoonBadge />}
         </div>
-      )}
-
-      {showInvites && link.visibility === "invite" && <InviteList shareLinkId={link.id} />}
-    </li>
+        {sub && <div className="text-xs text-muted mt-0.5">{sub}</div>}
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        onClick={() => !locked && onChange(!checked)}
+        disabled={locked}
+        className={`w-11 h-6 rounded-full transition relative shrink-0 ${
+          checked ? "bg-accent" : "bg-edge"
+        } ${locked ? "cursor-not-allowed" : "cursor-pointer"}`}
+      >
+        <span
+          className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${
+            checked ? "left-[22px]" : "left-0.5"
+          }`}
+        />
+      </button>
+    </div>
   );
 }
 
-function InviteList({ shareLinkId }: { shareLinkId: string }) {
+function InlineInviteList({
+  shareLinkId,
+  onCountChange,
+}: {
+  shareLinkId: string;
+  onCountChange: (n: number) => void;
+}) {
   const [items, setItems] = useState<ShareInvite[]>([]);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState("");
@@ -285,44 +484,84 @@ function InviteList({ shareLinkId }: { shareLinkId: string }) {
 
   useEffect(() => {
     let cancel = false;
-    listInvites(shareLinkId).then((r) => !cancel && setItems(r)).catch((e) => !cancel && setErr(e.message)).finally(() => !cancel && setLoading(false));
+    listInvites(shareLinkId)
+      .then((r) => {
+        if (cancel) return;
+        setItems(r);
+        onCountChange(r.length);
+      })
+      .catch((e) => !cancel && setErr(formatErr(e)))
+      .finally(() => !cancel && setLoading(false));
     return () => { cancel = true; };
-  }, [shareLinkId]);
+  }, [shareLinkId, onCountChange]);
 
   const onAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    setBusy(true); setErr(null);
+    setBusy(true);
+    setErr(null);
     try {
       const next = await addInvite(shareLinkId, draft);
-      setItems((it) => it.some((i) => i.email === next.email) ? it : [...it, next]);
+      setItems((it) => {
+        if (it.some((i) => i.email === next.email)) return it;
+        const updated = [...it, next];
+        onCountChange(updated.length);
+        return updated;
+      });
       setDraft("");
     } catch (e) {
       setErr(formatErr(e));
-    } finally { setBusy(false); }
+    } finally {
+      setBusy(false);
+    }
   };
 
   const onRemove = async (id: string) => {
-    setItems((it) => it.filter((i) => i.id !== id));
-    try { await removeInvite(id); } catch (e) { setErr(formatErr(e)); }
+    setItems((it) => {
+      const updated = it.filter((i) => i.id !== id);
+      onCountChange(updated.length);
+      return updated;
+    });
+    try {
+      await removeInvite(id);
+    } catch (e) {
+      setErr(formatErr(e));
+    }
   };
 
   return (
-    <div className="bg-ink/50 border border-edge rounded-lg p-3 space-y-2 mt-2">
+    <div className="rounded-xl bg-panel2 border border-edge p-3 space-y-2">
       <form onSubmit={onAdd} className="flex gap-2">
-        <input type="email" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="add@email.com" className="flex-1 min-w-0 bg-panel border border-edge focus:border-accent focus:outline-none rounded px-2 py-1.5 text-xs text-white placeholder:text-muted" />
-        <button type="submit" disabled={busy || !draft.trim()} className="bg-accent hover:bg-accent/90 disabled:opacity-60 text-white text-xs font-medium px-3 rounded">Add</button>
+        <input
+          type="email"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="add@email.com"
+          className="flex-1 min-w-0 bg-ink border border-edge focus:border-accent focus:outline-none rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted"
+        />
+        <button
+          type="submit"
+          disabled={busy || !draft.trim()}
+          className="bg-accent hover:bg-accent/90 disabled:opacity-60 text-white text-sm font-medium px-4 rounded-lg"
+        >
+          Add
+        </button>
       </form>
       {err && <p className="text-xs text-red-400">{err}</p>}
       {loading ? (
-        <p className="text-xs text-muted">Loading invites…</p>
+        <p className="text-xs text-muted">Loading invitees…</p>
       ) : items.length === 0 ? (
         <p className="text-xs text-muted">No invitees yet.</p>
       ) : (
-        <ul className="space-y-1">
+        <ul className="divide-y divide-edge -mx-1">
           {items.map((inv) => (
-            <li key={inv.id} className="flex items-center justify-between text-xs">
+            <li key={inv.id} className="px-1 py-2 flex items-center justify-between text-sm">
               <span className="text-white truncate">{inv.email}</span>
-              <button onClick={() => onRemove(inv.id)} className="text-muted hover:text-red-400 shrink-0 px-2">Remove</button>
+              <button
+                onClick={() => onRemove(inv.id)}
+                className="text-muted hover:text-red-400 shrink-0 px-2 text-xs"
+              >
+                Remove
+              </button>
             </li>
           ))}
         </ul>

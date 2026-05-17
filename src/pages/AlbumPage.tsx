@@ -337,7 +337,7 @@ export default function AlbumPage() {
   };
 
   if (loading) return <div className="max-w-5xl mx-auto px-6 py-8 text-muted">Loading…</div>;
-  if (!album) return <div className="max-w-5xl mx-auto px-6 py-8 text-muted">Album not found.</div>;
+  if (!album) return <div className="max-w-5xl mx-auto px-6 py-8 text-muted">Project not found.</div>;
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
@@ -409,8 +409,8 @@ export default function AlbumPage() {
                 </h1>
                 <button
                   onClick={startTitleEdit}
-                  aria-label="Rename album"
-                  title="Rename album"
+                  aria-label="Rename project"
+                  title="Rename project"
                   className="opacity-0 group-hover:opacity-100 sm:opacity-100 text-muted hover:text-white p-1 transition shrink-0"
                 >
                   <Pencil size={14} />
@@ -421,10 +421,10 @@ export default function AlbumPage() {
               <button
                 onClick={() => setShowAlbumSheet(true)}
                 className="bg-panel2 hover:bg-edge text-white text-sm font-medium px-3 sm:px-4 py-2 rounded-lg border border-edge flex items-center gap-1.5"
-                aria-label="Share album"
+                aria-label="Share project"
               >
                 <Share2 size={14} />
-                <span className="hidden sm:inline">Share album</span>
+                <span className="hidden sm:inline">Share project</span>
                 <span className="sm:hidden">Share</span>
               </button>
             </div>

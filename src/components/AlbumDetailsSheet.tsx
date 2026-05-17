@@ -78,7 +78,7 @@ export default function AlbumDetailsSheet({
 
   const deleteAlbum = async () => {
     const ok = window.confirm(
-      `Delete "${album.title}"? This permanently removes the album, every track in it, and any share links. This cannot be undone.`
+      `Delete "${album.title}"? This permanently removes the project, every track in it, and any share links. This cannot be undone.`
     );
     if (!ok) return;
     const { error } = await supabase.from("albums").delete().eq("id", album.id);
@@ -137,7 +137,7 @@ export default function AlbumDetailsSheet({
 
           <div className="mx-4 mb-3 rounded-xl bg-panel2 border border-edge px-4 py-3 flex items-center gap-3">
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium text-white">Album sharing</div>
+              <div className="text-sm font-medium text-white">Project sharing</div>
               <div className="text-xs text-muted mt-0.5 flex items-center gap-1.5">
                 <StatusDot status={status} />
                 <span>{statusLabel(status)}</span>
@@ -169,12 +169,12 @@ export default function AlbumDetailsSheet({
             />
             <ActionRow
               icon={<Pencil size={16} />}
-              label="Rename album"
+              label="Rename project"
               onClick={() => { onClose(); onRequestRename(); }}
             />
             <ActionRow
               icon={<Trash2 size={16} />}
-              label="Delete album"
+              label="Delete project"
               onClick={deleteAlbum}
               destructive
             />
