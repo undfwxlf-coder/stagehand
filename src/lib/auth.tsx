@@ -4,6 +4,7 @@ import type { Session, User } from "@supabase/supabase-js";
 import { supabase, supabaseConfigured } from "./supabase";
 import { useProfileStore } from "./profile";
 import { useLibraryStore } from "./library";
+import { setSentryUser } from "./sentry";
 
 interface AuthCtx {
   user: User | null;
@@ -28,10 +29,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
+      setSentryUser(data.session?.user ? { id: data.session.user.id, email: data.session.user.email } : null);
       setLoading(false);
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_evt, s) => {
       setSession(s);
+      setSentryUser(s?.user ? { id: s.user.id, email: s.user.email } : null);
     });
     return () => sub.subscription.unsubscribe();
   }, []);

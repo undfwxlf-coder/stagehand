@@ -10,6 +10,7 @@ import NotificationToasts from "./NotificationToasts";
 import UploadIndicator from "./UploadIndicator";
 import { usePlayer } from "../lib/player";
 import { useProfileStore } from "../lib/profile";
+import { useIsAdmin } from "../lib/admin";
 
 export default function AppShell() {
   const { user } = useAuth();
@@ -17,6 +18,7 @@ export default function AppShell() {
   const hasPlayer = usePlayer((s) => Boolean(s.current));
   const profile = useProfileStore((s) => s.profile);
   const loadProfile = useProfileStore((s) => s.load);
+  const { isAdmin } = useIsAdmin();
 
   useEffect(() => {
     if (user) loadProfile(user.id);
@@ -42,6 +44,7 @@ export default function AppShell() {
           <nav className="flex items-center gap-1 flex-1 sm:flex-none sm:justify-center justify-end">
             <NavTab to="/" end>Library</NavTab>
             <NavTab to="/saved">Saved</NavTab>
+            {isAdmin && <NavTab to="/admin">Admin</NavTab>}
           </nav>
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <HeaderSearch />
