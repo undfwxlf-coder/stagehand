@@ -180,14 +180,20 @@ export default function ListenPage() {
       }
     });
     ws.on("pause", () => setIsPlaying(false));
+    // Per-instance guard: wavesurfer can fire `finish` more than once near
+    // the end on certain files / browsers, which would advance the queue by
+    // 2+ tracks. Each effect run gets a fresh flag so exactly one advance
+    // can happen per ws instance. Closure-captured idx is correct because
+    // the handler is freshly registered on every effect run.
+    let advanced = false;
     ws.on("finish", () => {
       setIsPlaying(false);
-      // Auto-advance for album shares — always in payload (= position) order.
-      // Set the ref so the next track's ws.on('ready') auto-plays.
-      if (data?.type === "album" && activeAlbumTrackIdx < data.tracks.length - 1) {
-        wantsPlayOnReadyRef.current = true;
-        setActiveAlbumTrackIdx((i) => i + 1);
-      }
+      if (advanced) return;
+      if (data?.type !== "album") return;
+      if (activeAlbumTrackIdx >= data.tracks.length - 1) return;
+      advanced = true;
+      wantsPlayOnReadyRef.current = true;
+      setActiveAlbumTrackIdx(activeAlbumTrackIdx + 1);
     });
     ws.on("error", (e) => {
       console.error("[listen] wavesurfer error", e);
