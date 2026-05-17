@@ -29,6 +29,7 @@ import TrackDetailsSheet from "../components/TrackDetailsSheet";
 import { Check, Music, Pencil, Share2, UploadCloud, X } from "lucide-react";
 import { useLibraryStore } from "../lib/library";
 import { useUploadStore } from "../lib/uploads";
+import { resyncAlbumSharesFireAndForget, resyncSharesForTrack } from "../lib/share";
 
 const ALBUM_STATUSES: AlbumStatus[] = ["writing", "recording", "mixing", "mastering", "released"];
 const TRACK_STATUSES: TrackStatus[] = ["idea", "demo", "tracking", "mixing", "mastering", "released"];
@@ -236,6 +237,7 @@ export default function AlbumPage() {
     setTracks((tr) => tr.map((t) => (t.id === id ? { ...t, title: trimmed } : t)));
     const { error } = await supabase.from("tracks").update({ title: trimmed }).eq("id", id);
     if (error) console.error("[rename] failed", error);
+    else if (albumId) resyncSharesForTrack(id, albumId);
   };
 
   const onDragEnd = async (e: DragEndEvent) => {
@@ -267,6 +269,8 @@ export default function AlbumPage() {
           }))
         );
       }
+    } else if (albumId) {
+      resyncAlbumSharesFireAndForget(albumId);
     }
   };
 
@@ -587,6 +591,7 @@ export default function AlbumPage() {
             onDeleted={() => {
               setTracks((rows) => rows.filter((r) => r.id !== t.id));
               setDetailsTrackId(null);
+              if (albumId) resyncAlbumSharesFireAndForget(albumId);
             }}
           />
         );

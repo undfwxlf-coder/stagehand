@@ -3,6 +3,7 @@ import { supabase } from "./supabase";
 import { decodeAudio, detectBpm, detectKey, peaksFromBuffer } from "./audioAnalysis";
 import { inferAudioMeta, inferVersionLabel } from "./audio";
 import { formatErr } from "./errors";
+import { resyncSharesForTrack } from "./share";
 import type { Track, Version } from "./database.types";
 
 export type UploadPhase =
@@ -175,6 +176,11 @@ export const useUploadStore = create<UploadState>((set, get) => ({
 
         const updateRes = await supabase.from("tracks").update(trackPatch).eq("id", track.id);
         if (updateRes.error) console.error("[upload] track update failed", updateRes.error);
+
+        // Audio replaced (or first upload to an empty track) — refresh both
+        // the track's own shares and any album shares of the parent album so
+        // listeners on existing links get the new version + metadata.
+        resyncSharesForTrack(track.id, track.album_id);
 
         patch({
           phase: "done",

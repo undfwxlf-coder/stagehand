@@ -242,3 +242,154 @@ export async function removeInvite(inviteId: string): Promise<void> {
 export function shareUrlFor(slug: string): string {
   return `${window.location.origin}/listen/${slug}`;
 }
+
+// =================================================================
+// Re-sync helpers: keep existing shares pointing at the *current*
+// state of the project/track. Album shares carry a JSONB snapshot of
+// every track at creation time, and per-track shares carry a frozen
+// version_id + signed_url; both need refreshing whenever the artist
+// edits something so listeners on existing links see the new data.
+// =================================================================
+
+function ttlForExpiresAt(expiresAt: string | null | undefined): number {
+  if (!expiresAt) return NEVER_EXPIRES_SIGNED_URL_SEC;
+  const remaining = Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000);
+  // 60s floor so a near-expired share still gets a usable URL.
+  return Math.max(60, remaining);
+}
+
+/** Refresh signed_url + version_id on every non-revoked track share for this
+ *  track so listeners always hear the current version with up-to-date metadata. */
+export async function resyncTrackShares(trackId: string): Promise<void> {
+  const shares = await supabase
+    .from("share_links")
+    .select("id, expires_at")
+    .eq("track_id", trackId)
+    .eq("revoked", false);
+  if (shares.error) throw shares.error;
+  if (!shares.data || shares.data.length === 0) return;
+
+  const track = await supabase
+    .from("tracks")
+    .select("current_version_id")
+    .eq("id", trackId)
+    .single();
+  if (track.error || !track.data?.current_version_id) return;
+
+  const version = await supabase
+    .from("versions")
+    .select("storage_path")
+    .eq("id", track.data.current_version_id)
+    .single();
+  if (version.error || !version.data) return;
+
+  await Promise.all(
+    shares.data.map(async (s) => {
+      const ttl = ttlForExpiresAt(s.expires_at);
+      const signed = await supabase.storage
+        .from("audio")
+        .createSignedUrl(version.data!.storage_path, ttl);
+      if (signed.error || !signed.data) return;
+      await supabase
+        .from("share_links")
+        .update({
+          version_id: track.data!.current_version_id,
+          signed_url: signed.data.signedUrl,
+        })
+        .eq("id", s.id);
+    })
+  );
+}
+
+/** Rebuild the JSONB payload for every non-revoked album share so all metadata
+ *  edits (rename, BPM/key, reorder), audio replacements (new current version),
+ *  and structural changes (added / deleted tracks) reach listeners. */
+export async function resyncAlbumShares(albumId: string): Promise<void> {
+  const shares = await supabase
+    .from("share_links")
+    .select("id, expires_at")
+    .eq("album_id", albumId)
+    .eq("revoked", false);
+  if (shares.error) throw shares.error;
+  if (!shares.data || shares.data.length === 0) return;
+
+  const tracksRes = await supabase
+    .from("tracks")
+    .select("id, title, position, bpm, song_key, current_version_id")
+    .eq("album_id", albumId)
+    .order("position");
+  if (tracksRes.error) throw tracksRes.error;
+
+  type TrackLite = {
+    id: string;
+    title: string;
+    position: number;
+    bpm: number | null;
+    song_key: string | null;
+    current_version_id: string | null;
+  };
+  const playable = ((tracksRes.data ?? []) as TrackLite[]).filter((t) => t.current_version_id);
+
+  type VLite = {
+    id: string;
+    label: string;
+    storage_path: string;
+    duration_sec: number | null;
+    peaks: number[] | null;
+  };
+  let versionMap = new Map<string, VLite>();
+  if (playable.length > 0) {
+    const versionIds = playable.map((t) => t.current_version_id!);
+    const vRes = await supabase
+      .from("versions")
+      .select("id, label, storage_path, duration_sec, peaks")
+      .in("id", versionIds);
+    if (vRes.error) throw vRes.error;
+    versionMap = new Map<string, VLite>(((vRes.data ?? []) as VLite[]).map((v) => [v.id, v]));
+  }
+
+  await Promise.all(
+    shares.data.map(async (s) => {
+      const ttl = ttlForExpiresAt(s.expires_at);
+      const payload: AlbumShareTrackPayload[] = [];
+      for (const t of playable) {
+        const v = versionMap.get(t.current_version_id!);
+        if (!v) continue;
+        const signed = await supabase.storage
+          .from("audio")
+          .createSignedUrl(v.storage_path, ttl);
+        if (signed.error || !signed.data) continue;
+        payload.push({
+          track_id: t.id,
+          title: t.title,
+          position: t.position,
+          bpm: t.bpm,
+          song_key: t.song_key,
+          version_id: v.id,
+          version_label: v.label,
+          duration_sec: v.duration_sec,
+          peaks: v.peaks,
+          signed_url: signed.data.signedUrl,
+        });
+      }
+      await supabase.from("share_links").update({ payload }).eq("id", s.id);
+    })
+  );
+}
+
+/** Convenience: after editing a single track, refresh both its own shares
+ *  and the parent album's shares. Fire-and-forget — errors are swallowed
+ *  and logged so a failed resync doesn't block the UI edit. */
+export function resyncSharesForTrack(trackId: string, albumId: string): void {
+  void Promise.all([resyncTrackShares(trackId), resyncAlbumShares(albumId)]).catch((e) => {
+    console.error("[shares] resync failed", e);
+  });
+}
+
+/** Convenience: after a structural album change (add/delete/reorder tracks),
+ *  refresh the album shares' payload. Fire-and-forget. */
+export function resyncAlbumSharesFireAndForget(albumId: string): void {
+  void resyncAlbumShares(albumId).catch((e) => {
+    console.error("[shares] album resync failed", e);
+  });
+}

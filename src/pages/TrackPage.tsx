@@ -8,6 +8,7 @@ import { formatErr } from "../lib/errors";
 import { detectBpm, detectKey } from "../lib/audioAnalysis";
 import { usePlayer } from "../lib/player";
 import { useUploadStore, isActivePhase } from "../lib/uploads";
+import { resyncSharesForTrack } from "../lib/share";
 import ShareModal from "../components/ShareModal";
 import { Download, Play, Share2, SlidersHorizontal, Sparkles, Trash2 } from "lucide-react";
 
@@ -135,6 +136,7 @@ export default function TrackPage() {
       const { error } = await supabase.from("tracks").update(patch).eq("id", track.id);
       if (error) throw error;
       setTrack({ ...track, ...patch });
+      resyncSharesForTrack(track.id, track.album_id);
       setRedetectStatus("Done.");
       setTimeout(() => setRedetectStatus(null), 2000);
     } catch (e) {
@@ -149,6 +151,7 @@ export default function TrackPage() {
     if (!track) return;
     setTrack({ ...track, current_version_id: versionId });
     await supabase.from("tracks").update({ current_version_id: versionId }).eq("id", track.id);
+    resyncSharesForTrack(track.id, track.album_id);
   };
 
   const deleteVersion = async (v: Version) => {
@@ -369,6 +372,7 @@ function TrackMetaStrip({
           if (next != null && (!isFinite(next) || next < 30 || next > 300)) return;
           onChange({ bpm: next });
           await supabase.from("tracks").update({ bpm: next }).eq("id", track.id);
+          resyncSharesForTrack(track.id, track.album_id);
         }}
       />
       <MetaField
@@ -381,6 +385,7 @@ function TrackMetaStrip({
           const next = v.trim() === "" ? null : v.trim();
           onChange({ song_key: next });
           await supabase.from("tracks").update({ song_key: next }).eq("id", track.id);
+          resyncSharesForTrack(track.id, track.album_id);
         }}
       />
     </div>
