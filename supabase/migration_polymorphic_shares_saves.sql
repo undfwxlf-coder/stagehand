@@ -138,6 +138,29 @@ create table if not exists public.saves (
   constraint saves_track_unique unique (user_id, track_id),
   constraint saves_album_unique unique (user_id, album_id)
 );
+
+-- Catch-up alters: if `saves` already existed in an older shape (track-only),
+-- `CREATE TABLE IF NOT EXISTS` above is a no-op and the polymorphic columns
+-- / constraints never landed. Bring it up to spec defensively.
+alter table public.saves
+  add column if not exists album_id uuid references public.albums(id) on delete cascade;
+alter table public.saves
+  add column if not exists share_link_id uuid references public.share_links(id) on delete set null;
+alter table public.saves alter column track_id drop not null;
+
+alter table public.saves drop constraint if exists saves_target_xor;
+alter table public.saves
+  add constraint saves_target_xor check (
+    (track_id is not null and album_id is null)
+    or (track_id is null and album_id is not null)
+  );
+alter table public.saves drop constraint if exists saves_track_unique;
+alter table public.saves
+  add constraint saves_track_unique unique (user_id, track_id);
+alter table public.saves drop constraint if exists saves_album_unique;
+alter table public.saves
+  add constraint saves_album_unique unique (user_id, album_id);
+
 create index if not exists saves_user_idx on public.saves(user_id);
 
 alter table public.saves enable row level security;
@@ -157,6 +180,14 @@ create table if not exists public.plays (
   share_slug text,
   created_at timestamptz not null default now()
 );
+
+-- Catch-up: same pattern as `saves` — if `plays` pre-existed without these
+-- columns, `CREATE TABLE IF NOT EXISTS` skipped them.
+alter table public.plays
+  add column if not exists user_id uuid references auth.users(id) on delete set null;
+alter table public.plays
+  add column if not exists share_slug text;
+
 create index if not exists plays_track_created_idx on public.plays (track_id, created_at desc);
 
 alter table public.plays enable row level security;
