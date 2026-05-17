@@ -45,10 +45,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signUp: AuthCtx["signUp"] = async (email, password, artistName) => {
+    // Send the email-confirm link back to wherever the user signed up from.
+    // Using window.location.origin (instead of relying on Supabase's Site URL
+    // setting) makes the redirect work on any host — netlify domain, custom
+    // domain, even localhost dev — as long as the host is on the project's
+    // Redirect URLs allowlist in Supabase.
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { artist_name: artistName.trim() } },
+      options: {
+        data: { artist_name: artistName.trim() },
+        emailRedirectTo: window.location.origin,
+      },
     });
     if (error) return { error: error.message };
     return { error: null };
