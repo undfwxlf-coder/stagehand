@@ -139,9 +139,48 @@ create table if not exists public.saves (
   constraint saves_album_unique unique (user_id, album_id)
 );
 
--- Catch-up alters: if `saves` already existed in an older shape (track-only),
+-- Catch-up alters: if `saves` already existed in an older shape (track-only,
+-- often with a composite PK on (user_id, track_id) and no `id` column),
 -- `CREATE TABLE IF NOT EXISTS` above is a no-op and the polymorphic columns
--- / constraints never landed. Bring it up to spec defensively.
+-- / constraints / synthetic PK never landed. Bring it up to spec defensively.
+
+-- (1) Ensure a synthetic `id` column with values for any pre-existing rows.
+alter table public.saves add column if not exists id uuid;
+update public.saves set id = gen_random_uuid() where id is null;
+alter table public.saves alter column id set not null;
+alter table public.saves alter column id set default gen_random_uuid();
+
+-- (2) If the existing primary key isn't on `id`, drop it. `track_id` can only
+-- become nullable after it's out of the primary key.
+do $$
+declare
+  pk_name text;
+  pk_cols text;
+begin
+  select conname,
+         (select string_agg(attname, ',' order by k.ord)
+          from unnest(conkey) with ordinality as k(attnum, ord)
+          join pg_attribute a on a.attrelid = conrelid and a.attnum = k.attnum)
+    into pk_name, pk_cols
+  from pg_constraint
+  where conrelid = 'public.saves'::regclass and contype = 'p';
+  if pk_name is not null and pk_cols is distinct from 'id' then
+    execute format('alter table public.saves drop constraint %I', pk_name);
+  end if;
+end $$;
+
+-- (3) Add primary key on `id` if none exists yet.
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.saves'::regclass and contype = 'p'
+  ) then
+    alter table public.saves add primary key (id);
+  end if;
+end $$;
+
+-- (4) Polymorphic columns + nullability.
 alter table public.saves
   add column if not exists album_id uuid references public.albums(id) on delete cascade;
 alter table public.saves
