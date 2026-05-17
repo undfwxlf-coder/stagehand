@@ -90,6 +90,10 @@ export default function ListenPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
   const readyRef = useRef(false);
+  // Survives the wavesurfer rebuild between tracks. Set true when we want the
+  // next track to auto-play (natural-end advance, or user clicking a row while
+  // already playing). Cleared after the ready handler kicks off playback.
+  const wantsPlayOnReadyRef = useRef(false);
 
   useEffect(() => {
     if (!slug) return;
@@ -161,6 +165,10 @@ export default function ListenPage() {
     ws.on("ready", () => {
       readyRef.current = true;
       setDuration(ws.getDuration());
+      if (wantsPlayOnReadyRef.current) {
+        wantsPlayOnReadyRef.current = false;
+        ws.play().catch(() => setIsPlaying(false));
+      }
     });
     ws.on("audioprocess", () => setPosition(ws.getCurrentTime()));
     ws.on("seeking", () => setPosition(ws.getCurrentTime()));
@@ -174,8 +182,10 @@ export default function ListenPage() {
     ws.on("pause", () => setIsPlaying(false));
     ws.on("finish", () => {
       setIsPlaying(false);
-      // Auto-advance for album shares
+      // Auto-advance for album shares — always in payload (= position) order.
+      // Set the ref so the next track's ws.on('ready') auto-plays.
       if (data?.type === "album" && activeAlbumTrackIdx < data.tracks.length - 1) {
+        wantsPlayOnReadyRef.current = true;
         setActiveAlbumTrackIdx((i) => i + 1);
       }
     });
@@ -428,8 +438,14 @@ export default function ListenPage() {
                     <li key={t.track_id} className={`px-4 sm:px-5 py-2.5 flex items-center gap-3 ${isActive ? "bg-panel2/40" : ""}`}>
                       <button
                         onClick={() => {
-                          if (isActive) toggle();
-                          else setActiveAlbumTrackIdx(i);
+                          if (isActive) {
+                            toggle();
+                          } else {
+                            // Clicking a different track should start it playing,
+                            // not just load it paused.
+                            wantsPlayOnReadyRef.current = true;
+                            setActiveAlbumTrackIdx(i);
+                          }
                         }}
                         className="w-7 h-7 rounded-full text-muted hover:text-white hover:bg-ink flex items-center justify-center shrink-0"
                         aria-label="Play"
