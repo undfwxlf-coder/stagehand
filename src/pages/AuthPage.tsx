@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import Logo from "../components/Logo";
 
@@ -137,6 +137,20 @@ export default function AuthPage() {
           {err && <p className="text-sm text-red-400">{err}</p>}
           {info && <p className="text-sm text-emerald-400">{info}</p>}
 
+          {mode === "signup" && (
+            <p className="text-xs text-muted leading-relaxed">
+              By creating an account you agree to our{" "}
+              <Link to="/terms" className="text-white hover:underline">
+                Terms of Service
+              </Link>{" "}
+              and{" "}
+              <Link to="/privacy" className="text-white hover:underline">
+                Privacy Policy
+              </Link>
+              .
+            </p>
+          )}
+
           <button
             type="submit"
             disabled={busy}
@@ -192,6 +206,10 @@ function AuthShell({ children }: { children: React.ReactNode }) {
         <p className="mt-6 text-center text-xs text-muted">
           Your unreleased music stays private. Streaming uses time-limited links.
         </p>
+        <div className="mt-3 flex justify-center gap-4 text-xs text-muted">
+          <Link to="/terms" className="hover:text-white">Terms</Link>
+          <Link to="/privacy" className="hover:text-white">Privacy</Link>
+        </div>
       </div>
     </div>
   );

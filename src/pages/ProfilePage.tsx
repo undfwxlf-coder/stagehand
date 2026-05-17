@@ -29,8 +29,8 @@ import type { Profile } from "../lib/database.types";
 // TODO: replace with the real destinations.
 const CONTACT_EMAIL = "stagehand.studio@gmail.com";
 const INSTAGRAM_URL = "https://instagram.com/stagehand.studio";
-const TERMS_URL = ""; // leave empty until the page exists — row renders as "Coming soon"
-const PRIVACY_URL = ""; // ditto
+const TERMS_URL = "/terms";
+const PRIVACY_URL = "/privacy";
 
 export default function ProfilePage() {
   const { user, signOut } = useAuth();
@@ -313,16 +313,12 @@ export default function ProfilePage() {
         <ActionRow
           icon={<FileText size={16} />}
           label="Terms of Service"
-          href={TERMS_URL || undefined}
-          external={Boolean(TERMS_URL)}
-          soon={!TERMS_URL}
+          href={TERMS_URL}
         />
         <ActionRow
           icon={<ShieldCheck size={16} />}
           label="Privacy Policy"
-          href={PRIVACY_URL || undefined}
-          external={Boolean(PRIVACY_URL)}
-          soon={!PRIVACY_URL}
+          href={PRIVACY_URL}
         />
       </div>
 

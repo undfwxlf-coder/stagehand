@@ -75,7 +75,11 @@ export default function AppShell() {
             <Logo size={16} />
             <span>Stagehand</span>
           </div>
-          <span className="text-muted/80">Made for artists who haven't released it yet.</span>
+          <div className="flex items-center gap-4">
+            <Link to="/terms" className="hover:text-white">Terms</Link>
+            <Link to="/privacy" className="hover:text-white">Privacy</Link>
+            <span className="text-muted/80 hidden sm:inline">Made for artists who haven't released it yet.</span>
+          </div>
         </div>
       </footer>
       <PlayerBar />

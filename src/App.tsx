@@ -3,6 +3,8 @@ import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom
 import { AuthProvider, useAuth } from "./lib/auth";
 import AuthPage from "./pages/AuthPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
+import TermsPage from "./pages/TermsPage";
+import PrivacyPage from "./pages/PrivacyPage";
 import LibraryPage from "./pages/LibraryPage";
 import AlbumPage from "./pages/AlbumPage";
 import TrackPage from "./pages/TrackPage";
@@ -21,6 +23,8 @@ export default function App() {
         <Routes>
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/auth/reset" element={<ResetPasswordPage />} />
+          <Route path="/terms" element={<TermsPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/listen/:slug" element={<ListenPage />} />
           <Route element={<RequireAuth />}>
             <Route
