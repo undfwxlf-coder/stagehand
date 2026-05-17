@@ -4,8 +4,8 @@ import { useAuth } from "../lib/auth";
 import Logo from "../components/Logo";
 
 export default function AuthPage() {
-  const { user, loading, configured, signIn, signUp } = useAuth();
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const { user, loading, configured, signIn, signUp, resetPassword } = useAuth();
+  const [mode, setMode] = useState<"signin" | "signup" | "forgot">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [artistName, setArtistName] = useState("");
@@ -35,42 +35,70 @@ export default function AuthPage() {
     setErr(null);
     setInfo(null);
     setBusy(true);
-    const fn = mode === "signin" ? signIn(email, password) : signUp(email, password, artistName);
-    const { error } = await fn;
+    let result: { error: string | null };
+    if (mode === "signin") result = await signIn(email, password);
+    else if (mode === "signup") result = await signUp(email, password, artistName);
+    else result = await resetPassword(email);
     setBusy(false);
-    if (error) {
-      setErr(error);
+    if (result.error) {
+      setErr(result.error);
       return;
     }
     if (mode === "signup") {
       setInfo("Check your email to confirm your account, then sign in.");
       setMode("signin");
+    } else if (mode === "forgot") {
+      setInfo("Check your email for a password reset link.");
     }
+  };
+
+  const goForgot = () => {
+    setMode("forgot");
+    setErr(null);
+    setInfo(null);
+    setPassword("");
+  };
+
+  const goSignin = () => {
+    setMode("signin");
+    setErr(null);
+    setInfo(null);
   };
 
   return (
     <AuthShell>
       <form onSubmit={submit} className="bg-panel border border-edge rounded-2xl p-6 space-y-4">
-          <div className="flex gap-1 p-1 bg-ink rounded-lg">
-            <button
-              type="button"
-              onClick={() => setMode("signin")}
-              className={`flex-1 py-2 text-sm rounded-md transition ${
-                mode === "signin" ? "bg-panel2 text-white" : "text-muted"
-              }`}
-            >
-              Sign in
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode("signup")}
-              className={`flex-1 py-2 text-sm rounded-md transition ${
-                mode === "signup" ? "bg-panel2 text-white" : "text-muted"
-              }`}
-            >
-              Create account
-            </button>
-          </div>
+          {mode !== "forgot" && (
+            <div className="flex gap-1 p-1 bg-ink rounded-lg">
+              <button
+                type="button"
+                onClick={() => setMode("signin")}
+                className={`flex-1 py-2 text-sm rounded-md transition ${
+                  mode === "signin" ? "bg-panel2 text-white" : "text-muted"
+                }`}
+              >
+                Sign in
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("signup")}
+                className={`flex-1 py-2 text-sm rounded-md transition ${
+                  mode === "signup" ? "bg-panel2 text-white" : "text-muted"
+                }`}
+              >
+                Create account
+              </button>
+            </div>
+          )}
+
+          {mode === "forgot" && (
+            <div>
+              <h2 className="text-white font-semibold text-lg">Reset password</h2>
+              <p className="text-xs text-muted mt-1">
+                Enter the email you signed up with. We'll send you a link to set a new password.
+              </p>
+            </div>
+          )}
 
           {mode === "signup" && (
             <Field
@@ -83,7 +111,28 @@ export default function AuthPage() {
             />
           )}
           <Field label="Email" type="email" value={email} onChange={setEmail} required />
-          <Field label="Password" type="password" value={password} onChange={setPassword} required minLength={6} />
+          {mode !== "forgot" && (
+            <Field
+              label="Password"
+              type="password"
+              value={password}
+              onChange={setPassword}
+              required
+              minLength={6}
+            />
+          )}
+
+          {mode === "signin" && (
+            <div className="-mt-1 flex justify-end">
+              <button
+                type="button"
+                onClick={goForgot}
+                className="text-xs text-muted hover:text-white transition"
+              >
+                Forgot password?
+              </button>
+            </div>
+          )}
 
           {err && <p className="text-sm text-red-400">{err}</p>}
           {info && <p className="text-sm text-emerald-400">{info}</p>}
@@ -93,8 +142,24 @@ export default function AuthPage() {
             disabled={busy}
             className="w-full bg-accent hover:bg-accent/90 disabled:opacity-60 text-white font-medium py-2.5 rounded-lg transition"
           >
-            {busy ? "Working…" : mode === "signin" ? "Sign in" : "Create account"}
+            {busy
+              ? "Working…"
+              : mode === "signin"
+              ? "Sign in"
+              : mode === "signup"
+              ? "Create account"
+              : "Send reset link"}
           </button>
+
+          {mode === "forgot" && (
+            <button
+              type="button"
+              onClick={goSignin}
+              className="w-full text-xs text-muted hover:text-white transition"
+            >
+              ← Back to sign in
+            </button>
+          )}
         </form>
     </AuthShell>
   );

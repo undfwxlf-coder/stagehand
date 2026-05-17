@@ -14,6 +14,8 @@ interface AuthCtx {
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signUp: (email: string, password: string, artistName: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
+  resetPassword: (email: string) => Promise<{ error: string | null }>;
+  updatePassword: (newPassword: string) => Promise<{ error: string | null }>;
 }
 
 const Ctx = createContext<AuthCtx | null>(null);
@@ -68,6 +70,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     useLibraryStore.getState().clear();
   };
 
+  // Send a password-reset email. The link in the email lands the user at
+  // /auth/reset, where Supabase JS has already established a recovery
+  // session, so updatePassword() below can take effect.
+  const resetPassword: AuthCtx["resetPassword"] = async (email) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/reset`,
+    });
+    return { error: error?.message ?? null };
+  };
+
+  // Apply the new password. Only succeeds when there's an active session,
+  // which is the case immediately after the recovery link lands the user on
+  // /auth/reset (or for any signed-in user who wants to change their password).
+  const updatePassword: AuthCtx["updatePassword"] = async (newPassword) => {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    return { error: error?.message ?? null };
+  };
+
   return (
     <Ctx.Provider
       value={{
@@ -78,6 +98,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signIn,
         signUp,
         signOut,
+        resetPassword,
+        updatePassword,
       }}
     >
       {children}
