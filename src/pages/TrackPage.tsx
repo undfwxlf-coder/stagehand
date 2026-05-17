@@ -339,6 +339,8 @@ export default function TrackPage() {
         <ShareModal
           track={track}
           version={shareVersion}
+          albumArtworkUrl={album?.artwork_url ?? null}
+          onTrackChange={(patch) => setTrack({ ...track, ...patch })}
           onClose={() => setShareVersion(null)}
         />
       )}

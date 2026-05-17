@@ -367,10 +367,16 @@ export default function TrackDetailsSheet({
       </div>
 
       {shareOpen && version && (
-        <ShareModal track={track} version={version} onClose={() => {
-          setShareOpen(false);
-          listShareLinks(track.id).then(setLinks).catch(() => { /* silent */ });
-        }} />
+        <ShareModal
+          track={track}
+          version={version}
+          albumArtworkUrl={albumArtworkUrl}
+          onTrackChange={onTrackChange}
+          onClose={() => {
+            setShareOpen(false);
+            listShareLinks(track.id).then(setLinks).catch(() => { /* silent */ });
+          }}
+        />
       )}
     </>
   );
