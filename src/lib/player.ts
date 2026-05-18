@@ -35,6 +35,10 @@ interface PlayerState {
   isPlaying: boolean;
   positionSec: number;
   durationSec: number;
+  // Transient — set by a caller wanting the player to seek; PlayerBar reads
+  // it, applies the seek to its wavesurfer, then clears via consumeSeek().
+  // Bumped via a nonce so repeated seeks to the same second still trigger.
+  pendingSeek: { sec: number; nonce: number } | null;
   queue: PlayerTrack[];
   volume: number; // 0..1
   muted: boolean;
@@ -46,6 +50,8 @@ interface PlayerState {
   setQueue: (q: PlayerTrack[]) => void;
   setVolume: (v: number) => void;
   toggleMute: () => void;
+  seekTo: (sec: number) => void;
+  consumeSeek: () => void;
   next: () => void;
   prev: () => void;
 }
@@ -73,6 +79,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   isPlaying: false,
   positionSec: 0,
   durationSec: 0,
+  pendingSeek: null,
   queue: [],
   volume: initialVolume,
   muted: initialMuted,
@@ -95,6 +102,8 @@ export const usePlayer = create<PlayerState>((set, get) => ({
       return { muted: next };
     });
   },
+  seekTo: (sec) => set({ pendingSeek: { sec: Math.max(0, sec), nonce: Date.now() } }),
+  consumeSeek: () => set({ pendingSeek: null }),
   next: () => {
     const { queue, current } = get();
     if (!current) return;

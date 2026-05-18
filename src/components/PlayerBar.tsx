@@ -16,6 +16,8 @@ export default function PlayerBar() {
     setDuration,
     positionSec,
     durationSec,
+    pendingSeek,
+    consumeSeek,
     queue,
     next,
     prev,
@@ -296,6 +298,17 @@ export default function PlayerBar() {
       // ignore
     }
   }, [positionSec, durationSec]);
+
+  // Honor external seek requests (e.g. clicking a comment timestamp on TrackPage).
+  // The nonce on pendingSeek ensures back-to-back seeks to the same second still fire.
+  useEffect(() => {
+    if (!pendingSeek) return;
+    const ws = wsRef.current;
+    if (ws && readyRef.current) {
+      try { ws.setTime(Math.max(0, pendingSeek.sec)); } catch { /* ignore */ }
+    }
+    consumeSeek();
+  }, [pendingSeek, consumeSeek]);
 
   if (!current) return null;
 

@@ -11,6 +11,7 @@ import { isAlbumSaved, isTrackSaved, saveAlbum, saveTrack, unsaveAlbum, unsaveTr
 import type { AlbumShareTrackPayload } from "../lib/share";
 import { useAuth } from "../lib/auth";
 import Logo from "../components/Logo";
+import CommentFeed from "../components/CommentFeed";
 import { Download, Heart, Lock, Music, Pause, Play } from "lucide-react";
 
 interface ResolvedTrackShare {
@@ -235,6 +236,13 @@ export default function ListenPage() {
     else ws.play().catch(() => setIsPlaying(false));
   };
 
+  const seekToSec = (sec: number) => {
+    const ws = wsRef.current;
+    if (!ws || !readyRef.current) return;
+    const dur = ws.getDuration();
+    if (dur > 0) ws.seekTo(Math.max(0, Math.min(sec, dur)) / dur);
+  };
+
   // Check saved state when share resolves
   useEffect(() => {
     if (!data || !user) {
@@ -364,6 +372,17 @@ export default function ListenPage() {
               </div>
             </div>
 
+            <div className="mt-6">
+              <CommentFeed
+                trackId={data.track.id}
+                slug={slug}
+                versionId={data.version.id}
+                currentTimeSec={position}
+                onSeek={seekToSec}
+                canPost={Boolean(user)}
+              />
+            </div>
+
             <p className="text-center text-xs text-muted mt-6">
               {user ? (
                 <>Saved tracks appear in your Stagehand library.<br /></>
@@ -475,6 +494,19 @@ export default function ListenPage() {
                 })}
               </ul>
             </div>
+
+            {activeAlbumTrack && (
+              <div className="mt-6">
+                <CommentFeed
+                  trackId={activeAlbumTrack.track_id}
+                  slug={slug}
+                  versionId={activeAlbumTrack.version_id}
+                  currentTimeSec={position}
+                  onSeek={seekToSec}
+                  canPost={Boolean(user)}
+                />
+              </div>
+            )}
 
             <p className="text-center text-xs text-muted mt-6">
               {user ? (

@@ -148,6 +148,17 @@ A private workspace for music artists to track albums, store unreleased music, s
 - Playback uses the original artist's share link's signed URL; server-side withholds if revoked / expired / disabled / consumed.
 - Per-row Download where `allow_download` is true.
 
+### Timestamped comments
+- Signed-in listeners can pin reactions (🔥 ❤️ 😍 👏 💯 🤯) or short text comments to a specific playhead position on any shared track. Composer chip shows the live `@ M:SS` mark; clicking a comment's timestamp seeks the player to that moment.
+- Visible in **both** the listener view (`/listen/<slug>`) and the artist's `TrackPage` (`/track/<id>`).
+- **Visibility scoping**: track owner sees every comment across every share of the track. A listener on share X sees comments left through share X (plus their own). Different invite groups stay isolated — Band A's notes don't leak to Band B's listening session.
+- Access via three SECURITY DEFINER RPCs (`list_track_comments`, `post_track_comment`, `delete_track_comment`) that re-use the same `record_play` / `resolve_share` access logic (invite-membership check, expiry, require_account). RLS keeps inserts/deletes locked to the RPCs.
+- `track_comments` is in the `supabase_realtime` publication so the artist's notifications bell can pick up new comments in real time (subscription wiring TBD — follow-up).
+- Composer is suppressed for anonymous public-share listeners — they see comments but get a "Sign in to leave a comment" CTA. Matches the established trust model on saves.
+- Comment author can delete their own; track owner can delete any. No editing in v1 — delete + repost.
+- Anchored to the **track**, not the version. We store `version_id` at post-time as metadata so the artist can see "this was left on v2 mix" even after the audio is replaced.
+- `usePlayer.seekTo(sec)` was added so the comment-row click on `TrackPage` can scrub the global player bar (the artist isn't using a page-local wavesurfer there).
+
 ### Insights (per-track)
 - Inside the track details sheet (sub-view).
 - Stat cards (plays, saves) + listener feed (artist name for signed-in, "Anonymous" otherwise) + saves feed.
@@ -244,6 +255,7 @@ A private workspace for music artists to track albums, store unreleased music, s
 - `share_members` (**new** — share_link_id, user_id, joined_at; unique on (share_link_id, user_id))
 - `saves` (polymorphic: track_id XOR album_id; user_id, share_link_id)
 - `plays` (track_id, user_id nullable, share_slug nullable, created_at) — **must be in the `supabase_realtime` publication** for notification toasts
+- `track_comments` (**new** — track_id, share_link_id nullable, version_id nullable, user_id, body, timestamp_sec, is_reaction, created_at) — also in the `supabase_realtime` publication
 - `admins` (user_id → auth.users, added_at)
 
 ### Key RPCs
@@ -253,6 +265,7 @@ A private workspace for music artists to track albums, store unreleased music, s
 - `record_play(track_id, slug?)` — validates the share (membership-aware for invite shares), inserts a play row, increments counters.
 - `list_my_saves()` — returns mixed array of saved tracks and saved albums as JSON.
 - `list_share_members(share_link_id)` — returns the roster of a given invite share's members; gated server-side to the share's owner.
+- `list_track_comments(track_id, slug?)` / `post_track_comment(...)` / `delete_track_comment(comment_id)` — timestamped comments. Reuses the same access logic as `resolve_share` / `record_play` (invite membership, expiry, require_account). Owner sees every comment across all shares; listeners on share X see comments through share X only.
 - `is_admin()` — boolean for client + RLS use.
 - `admin_stats()` — top-level counts and 24h / 7d deltas.
 - `admin_recent_signups(limit)` / `admin_recent_plays(limit)` / `admin_recent_shares(limit)` — feeds for the admin dashboard.
@@ -266,6 +279,8 @@ A private workspace for music artists to track albums, store unreleased music, s
 - ⏳ `migration_audio_bucket_size.sql` — **still needs to be run**. Raises the `audio` bucket's per-file limit to 1 GiB. Also requires bumping the project-level Global file size limit in Supabase Dashboard → Storage → Settings.
 - ⏳ `migration_admin.sql` — **needs to be run** before `/admin` works. Adds `admins` table + RLS, `is_admin()`, `admin_stats`, `admin_recent_signups`, `admin_recent_plays`, `admin_recent_shares`. After running, insert your own user_id into `admins`: `insert into admins (user_id) values ((select id from auth.users where email = 'YOU@EXAMPLE.COM'));`.
 - ⏳ `migration_share_members.sql` — **needs to be run** for the new invite-v2 flow. Adds `share_members` table + RLS, rewrites `resolve_share` for membership-based access, updates `record_play` for membership semantics, adds `list_share_members`. Idempotent.
+- ⏳ `migration_track_status_waiting_on_feature.sql` — **needs to be run** to allow the new `waiting_on_feature` track status. Drops and re-adds the `tracks.status` CHECK constraint with the new value included. Idempotent.
+- ⏳ `migration_track_comments.sql` — **needs to be run** for timestamped comments. Adds `track_comments` table + RLS, the three RPCs (`list_track_comments`, `post_track_comment`, `delete_track_comment`), and adds the table to the `supabase_realtime` publication. Idempotent.
 
 ### Environment / dashboard config that has to be done manually
 

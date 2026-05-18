@@ -101,6 +101,21 @@ export interface Save {
   created_at: string;
 }
 
+export interface TrackComment {
+  id: string;
+  track_id: string;
+  share_link_id: string | null;
+  version_id: string | null;
+  user_id: string;
+  body: string;
+  timestamp_sec: number;
+  is_reaction: boolean;
+  created_at: string;
+  artist_name: string | null;
+  avatar_url: string | null;
+  is_mine: boolean;
+}
+
 export interface Database {
   public: {
     Tables: {

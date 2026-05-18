@@ -10,6 +10,7 @@ import { usePlayer } from "../lib/player";
 import { useUploadStore, isActivePhase } from "../lib/uploads";
 import { resyncSharesForTrack } from "../lib/share";
 import ShareModal from "../components/ShareModal";
+import CommentFeed from "../components/CommentFeed";
 import { Download, Play, Share2, SlidersHorizontal, Sparkles, Trash2 } from "lucide-react";
 
 export default function TrackPage() {
@@ -26,6 +27,9 @@ export default function TrackPage() {
   const activeJob = myJobs.find((j) => isActivePhase(j.phase)) ?? null;
   const lastErrorJob = myJobs.find((j) => j.phase === "error") ?? null;
   const play = usePlayer((s) => s.play);
+  const playerCurrent = usePlayer((s) => s.current);
+  const playerPositionSec = usePlayer((s) => s.positionSec);
+  const playerSeekTo = usePlayer((s) => s.seekTo);
   const [shareVersion, setShareVersion] = useState<Version | null>(null);
   const [redetecting, setRedetecting] = useState(false);
   const [redetectStatus, setRedetectStatus] = useState<string | null>(null);
@@ -337,6 +341,27 @@ export default function TrackPage() {
           </ul>
         )}
       </section>
+
+      <CommentFeed
+        trackId={track.id}
+        versionId={track.current_version_id}
+        currentTimeSec={playerCurrent?.trackId === track.id ? playerPositionSec : 0}
+        onSeek={(sec) => {
+          if (playerCurrent?.trackId === track.id) {
+            playerSeekTo(sec);
+          } else {
+            // Track isn't loaded in the global player yet — start it, then seek
+            // once the position is reported back from PlayerBar.
+            const current = versions.find((v) => v.id === track.current_version_id);
+            if (current) {
+              void playVersion(current).then(() => {
+                setTimeout(() => playerSeekTo(sec), 250);
+              });
+            }
+          }
+        }}
+        canPost={Boolean(user)}
+      />
 
       {shareVersion && track && (
         <ShareModal
