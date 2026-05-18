@@ -1,14 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
-  Check,
   ChevronDown,
-  Globe,
   Link as LinkIcon,
-  Lock,
   RotateCcw,
   Share2,
-  ShoppingBag,
-  Users,
   X,
 } from "lucide-react";
 import { formatErr } from "../lib/errors";
@@ -29,16 +24,14 @@ type UIVisibility = "private" | "invite" | "public" | "paid";
 interface VisOption {
   id: UIVisibility;
   label: string;
-  sub: string;
-  icon: React.ReactNode;
   soon?: boolean;
 }
 
 const VIS_OPTIONS: VisOption[] = [
-  { id: "private", label: "Private", sub: "Only you", icon: <Lock size={16} /> },
-  { id: "invite", label: "Invite Only", sub: "Invite people directly", icon: <Users size={16} /> },
-  { id: "public", label: "Public", sub: "Anyone with the link", icon: <Globe size={16} /> },
-  { id: "paid", label: "Paid", sub: "Only people who pay", icon: <ShoppingBag size={16} />, soon: true },
+  { id: "private", label: "Private" },
+  { id: "invite", label: "Invite" },
+  { id: "public", label: "Public" },
+  { id: "paid", label: "Paid", soon: true },
 ];
 
 function uiVisFor(link: ShareLink | null): UIVisibility {
@@ -58,11 +51,10 @@ export default function AlbumShareModal({
   const [link, setLink] = useState<ShareLink | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
-  const [vizPickerOpen, setVizPickerOpen] = useState(false);
+  const [optionsOpen, setOptionsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [inviteCount, setInviteCount] = useState(0);
-  const pickerWrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancel = false;
@@ -105,31 +97,15 @@ export default function AlbumShareModal({
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      if (vizPickerOpen) setVizPickerOpen(false);
-      else onClose();
+      if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [onClose, vizPickerOpen]);
-
-  // Click outside the visibility picker closes it
-  useEffect(() => {
-    if (!vizPickerOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (pickerWrapRef.current && !pickerWrapRef.current.contains(e.target as Node)) {
-        setVizPickerOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [vizPickerOpen]);
+  }, [onClose]);
 
   const uiViz = uiVisFor(link);
-  const currentOpt = VIS_OPTIONS.find((o) => o.id === uiViz) ?? VIS_OPTIONS[0];
 
   const setVisibility = async (next: UIVisibility) => {
-    setVizPickerOpen(false);
     if (next === "paid" || next === uiViz) return;
     setBusy(true);
     setErr(null);
@@ -203,24 +179,6 @@ export default function AlbumShareModal({
     }
   };
 
-  const makePrivate = async () => {
-    if (!link || link.revoked) return;
-    const ok = window.confirm(
-      "Make this project private? The current link stops working immediately."
-    );
-    if (!ok) return;
-    setBusy(true);
-    setErr(null);
-    try {
-      await revokeShareLink(link.id);
-      setLink(null);
-    } catch (e) {
-      setErr(formatErr(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const onCopy = async () => {
     if (!link) return;
     try {
@@ -249,12 +207,12 @@ export default function AlbumShareModal({
 
   const hasLink = Boolean(link && !link.revoked);
   const accessSummary = (() => {
-    if (loading) return "…";
-    if (!hasLink) return "No one";
-    if (uiViz === "public") return "Anyone with the link";
+    if (loading) return "Loading…";
+    if (!hasLink) return "Private · only you can see this";
+    if (uiViz === "public") return "Anyone with the link can listen";
     if (uiViz === "invite") return inviteCount === 0
-      ? "No invitees yet"
-      : `${inviteCount} ${inviteCount === 1 ? "invitee" : "invitees"}`;
+      ? "Invite only · no invitees yet"
+      : `Invite only · ${inviteCount} ${inviteCount === 1 ? "person" : "people"}`;
     return "—";
   })();
 
@@ -310,113 +268,71 @@ export default function AlbumShareModal({
             <h2 className="mt-4 text-2xl font-semibold text-white tracking-tight leading-tight">
               {album.title}
             </h2>
-            <p className="mt-1 text-[13px] text-white/50">Share project</p>
+            <p className="mt-1.5 text-[13px] text-white/55">{accessSummary}</p>
           </div>
         </div>
 
         {/* Scrollable body */}
-        <div className="relative flex-1 overflow-y-auto px-4 pb-5 min-h-0 space-y-3">
-          {/* Visibility selector */}
-          <div className="relative" ref={pickerWrapRef}>
-            <button
-              onClick={() => setVizPickerOpen((v) => !v)}
-              disabled={busy || loading}
-              className="w-full glass-raised rounded-2xl px-5 py-4 flex items-center gap-4 text-left hover:bg-white/[0.09] transition disabled:opacity-60"
-            >
-              <span className="w-9 h-9 rounded-full bg-white/[0.08] flex items-center justify-center text-white shrink-0">
-                {currentOpt.icon}
-              </span>
-              <div className="flex-1 min-w-0">
-                <div className="text-[15px] font-semibold text-white">{currentOpt.label}</div>
-                <div className="text-[12px] text-white/50">{currentOpt.sub}</div>
-              </div>
-              <ChevronDown size={18} className="text-white/40 shrink-0" />
-            </button>
+        <div className="relative flex-1 overflow-y-auto px-4 pb-5 min-h-0 space-y-4">
+          {/* Segmented visibility control — replaces dropdown */}
+          <SegmentedVisibility uiViz={uiViz} onChange={setVisibility} disabled={busy || loading} />
 
-            {vizPickerOpen && (
-              <div className="absolute inset-x-0 top-0 z-10 rounded-2xl overflow-hidden glass-strong shadow-glass-lg">
-                {VIS_OPTIONS.map((opt, i) => {
-                  const selected = opt.id === uiViz;
-                  return (
-                    <button
-                      key={opt.id}
-                      onClick={() => setVisibility(opt.id)}
-                      disabled={opt.soon || busy}
-                      className={`w-full px-5 py-3.5 flex items-center gap-4 text-left hover:bg-white/[0.06] disabled:cursor-not-allowed transition ${
-                        i !== 0 ? "border-t border-white/[0.06]" : ""
-                      } ${selected ? "bg-white/[0.05]" : ""} ${opt.soon ? "opacity-45" : ""}`}
-                    >
-                      <span className="w-9 h-9 rounded-full bg-white/[0.08] flex items-center justify-center text-white shrink-0">
-                        {opt.icon}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-[15px] font-semibold text-white flex items-center gap-2">
-                          {opt.label}
-                          {opt.soon && <SoonBadge />}
-                        </div>
-                        <div className="text-[12px] text-white/50">{opt.sub}</div>
-                      </div>
-                      <span className="w-6 h-6 flex items-center justify-center shrink-0">
-                        {selected && <Check size={18} className="text-accent" strokeWidth={2.5} />}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Who has access */}
-          <div className="glass-raised rounded-2xl px-5 py-4 flex items-center gap-3">
-            <div className="flex-1 min-w-0">
-              <div className="text-[15px] font-semibold text-white">Who has access</div>
-              <div className="text-[12px] text-white/50 mt-0.5 truncate">{accessSummary}</div>
-            </div>
-          </div>
-
-          {/* Invite list — only shown when Invite Only is selected */}
+          {/* Invite list — inline when Invite Only is selected */}
           {uiViz === "invite" && link && (
-            <div className="pt-1">
-              <div className="px-2 mb-2 text-[11px] uppercase tracking-wider text-white/40">Invitees</div>
-              <InlineInviteList shareLinkId={link.id} onCountChange={setInviteCount} />
-            </div>
+            <InlineInviteList shareLinkId={link.id} onCountChange={setInviteCount} />
           )}
 
-          {/* Settings */}
-          <div className="pt-2">
-            <div className="px-2 mb-2 text-[11px] uppercase tracking-wider text-white/40">Settings</div>
-            <div className="glass-raised rounded-2xl overflow-hidden divide-y divide-white/[0.06]">
-              <ToggleRow title="Allow editing" sub="Can edit and add tracks" checked={false} onChange={() => {}} soon />
-              <ToggleRow title="Allow downloads" sub="Can export audio" checked={false} onChange={() => {}} soon />
-              <ToggleRow
-                title="Require account"
-                sub={uiViz === "invite" ? "Always on for invite-only" : "Limit to Stagehand users"}
-                checked={Boolean(link?.require_account)}
-                onChange={setRequireAccount}
-                disabled={!hasLink || uiViz === "invite" || uiViz === "private"}
-              />
-            </div>
-          </div>
+          {/* More options disclosure */}
+          {hasLink && (
+            <div>
+              <button
+                onClick={() => setOptionsOpen((v) => !v)}
+                className="w-full flex items-center justify-between px-2 py-2 text-[13px] text-white/55 hover:text-white/80 transition"
+              >
+                <span className="font-medium">More options</span>
+                <ChevronDown
+                  size={16}
+                  className={`transition-transform duration-200 ${optionsOpen ? "rotate-180" : ""}`}
+                />
+              </button>
+              {optionsOpen && (
+                <div className="mt-1 space-y-3">
+                  <div className="glass-raised rounded-2xl overflow-hidden divide-y divide-white/[0.06]">
+                    <ToggleRow
+                      title="Allow editing"
+                      sub="Can edit and add tracks"
+                      checked={false}
+                      onChange={() => {}}
+                      soon
+                    />
+                    <ToggleRow
+                      title="Allow downloads"
+                      sub="Can export audio"
+                      checked={false}
+                      onChange={() => {}}
+                      soon
+                    />
+                    <ToggleRow
+                      title="Require account"
+                      sub={uiViz === "invite" ? "Always on for invite-only" : "Limit to Stagehand users"}
+                      checked={Boolean(link?.require_account)}
+                      onChange={setRequireAccount}
+                      disabled={uiViz === "invite" || uiViz === "private"}
+                    />
+                  </div>
 
-          {/* Reset / Make private — quieter footer-style actions */}
-          <div className="pt-2 grid grid-cols-2 gap-2">
-            <button
-              onClick={resetLink}
-              disabled={!hasLink || busy}
-              className="glass-raised rounded-2xl px-4 py-3 flex items-center justify-center gap-2 hover:bg-white/[0.09] disabled:opacity-40 disabled:cursor-not-allowed transition"
-            >
-              <RotateCcw size={14} className="text-white/60 shrink-0" />
-              <span className="text-[13px] font-medium text-white">Reset link</span>
-            </button>
-            <button
-              onClick={makePrivate}
-              disabled={!hasLink || busy}
-              className="glass-raised rounded-2xl px-4 py-3 flex items-center justify-center gap-2 hover:bg-red-500/10 disabled:opacity-40 disabled:cursor-not-allowed transition text-red-400"
-            >
-              <Lock size={14} className="shrink-0" />
-              <span className="text-[13px] font-medium">Make private</span>
-            </button>
-          </div>
+                  <button
+                    onClick={resetLink}
+                    disabled={busy}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 text-[13px] text-white/55 hover:text-white transition disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <RotateCcw size={14} className="shrink-0" />
+                    Reset link · generates a fresh URL
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           {err && <p className="text-[13px] text-red-400 px-2 pt-1">{err}</p>}
         </div>
@@ -441,6 +357,49 @@ export default function AlbumShareModal({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function SegmentedVisibility({
+  uiViz,
+  onChange,
+  disabled,
+}: {
+  uiViz: UIVisibility;
+  onChange: (v: UIVisibility) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="flex p-1 rounded-2xl bg-white/[0.06] border border-white/[0.08]">
+      {VIS_OPTIONS.map((opt) => {
+        const active = opt.id === uiViz;
+        const locked = Boolean(opt.soon) || disabled;
+        return (
+          <button
+            key={opt.id}
+            type="button"
+            onClick={() => !locked && onChange(opt.id)}
+            disabled={locked}
+            className={`flex-1 px-2 py-2.5 rounded-xl text-[13px] font-semibold transition relative ${
+              active
+                ? "bg-white text-ink shadow-[0_2px_8px_rgba(0,0,0,0.25)]"
+                : opt.soon
+                ? "text-white/30 cursor-not-allowed"
+                : disabled
+                ? "text-white/40 cursor-not-allowed"
+                : "text-white/65 hover:text-white"
+            }`}
+          >
+            <span className="block leading-tight">{opt.label}</span>
+            {opt.soon && (
+              <span className="block text-[9px] uppercase tracking-wider text-white/35 mt-0.5">
+                Soon
+              </span>
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }
