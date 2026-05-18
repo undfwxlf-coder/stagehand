@@ -9,6 +9,7 @@ export type TrackStatus =
   | "idea"
   | "demo"
   | "tracking"
+  | "waiting_on_feature"
   | "mixing"
   | "mastering"
   | "released";

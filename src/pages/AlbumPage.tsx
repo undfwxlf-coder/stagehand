@@ -32,15 +32,26 @@ import { useUploadStore } from "../lib/uploads";
 import { resyncAlbumSharesFireAndForget, resyncSharesForTrack } from "../lib/share";
 
 const ALBUM_STATUSES: AlbumStatus[] = ["writing", "recording", "mixing", "mastering", "released"];
-const TRACK_STATUSES: TrackStatus[] = ["idea", "demo", "tracking", "mixing", "mastering", "released"];
+const TRACK_STATUSES: TrackStatus[] = ["idea", "demo", "tracking", "waiting_on_feature", "mixing", "mastering", "released"];
 
 const TRACK_STATUS_COLORS: Record<TrackStatus, string> = {
   idea: "bg-slate-500/20 text-slate-300",
   demo: "bg-blue-500/20 text-blue-300",
   tracking: "bg-cyan-500/20 text-cyan-300",
+  waiting_on_feature: "bg-pink-500/20 text-pink-300",
   mixing: "bg-purple-500/20 text-purple-300",
   mastering: "bg-amber-500/20 text-amber-300",
   released: "bg-emerald-500/20 text-emerald-300",
+};
+
+const TRACK_STATUS_LABELS: Record<TrackStatus, string> = {
+  idea: "idea",
+  demo: "demo",
+  tracking: "tracking",
+  waiting_on_feature: "waiting on feat",
+  mixing: "mixing",
+  mastering: "mastering",
+  released: "released",
 };
 
 interface TrackWithVersion extends Track {
@@ -770,7 +781,7 @@ function SortableTrackRow({
       >
         {TRACK_STATUSES.map((s) => (
           <option key={s} value={s} className="bg-ink text-white">
-            {s}
+            {TRACK_STATUS_LABELS[s]}
           </option>
         ))}
       </select>
