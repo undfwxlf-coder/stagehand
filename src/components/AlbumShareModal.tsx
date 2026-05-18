@@ -7,13 +7,12 @@ import {
   X,
 } from "lucide-react";
 import { formatErr } from "../lib/errors";
-import type { Album, ShareInvite, ShareLink, ShareVisibility } from "../lib/database.types";
+import type { Album, ShareLink, ShareVisibility } from "../lib/database.types";
 import {
-  addInvite,
+  type ShareMember,
   createAlbumShareLink,
   listAlbumShareLinks,
-  listInvites,
-  removeInvite,
+  listShareMembers,
   revokeShareLink,
   shareUrlFor,
   updateShareLink,
@@ -54,7 +53,7 @@ export default function AlbumShareModal({
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [inviteCount, setInviteCount] = useState(0);
+  const [memberCount, setMemberCount] = useState(0);
 
   useEffect(() => {
     let cancel = false;
@@ -76,15 +75,15 @@ export default function AlbumShareModal({
     };
   }, [album.id]);
 
-  // Re-fetch invite count whenever the active link changes to an invite link
+  // Re-fetch member count whenever the active link changes to an invite link.
   useEffect(() => {
     if (!link || link.visibility !== "invite") {
-      setInviteCount(0);
+      setMemberCount(0);
       return;
     }
     let cancel = false;
-    listInvites(link.id)
-      .then((rows) => !cancel && setInviteCount(rows.length))
+    listShareMembers(link.id)
+      .then((rows) => !cancel && setMemberCount(rows.length))
       .catch(() => { /* silent */ });
     return () => { cancel = true; };
   }, [link]);
@@ -116,10 +115,14 @@ export default function AlbumShareModal({
         return;
       }
       const dbViz: ShareVisibility = next === "invite" ? "invite" : "link";
+      // For invite links the `expires_at` is the join cutoff. Default to
+      // 7 days so the artist doesn't have to think about it; can be changed
+      // later. Public links default to never-expires.
+      const defaultExpiry = dbViz === "invite" ? 7 * 24 * 60 * 60 : 0;
       if (!link || link.revoked) {
         const created = await createAlbumShareLink({
           albumId: album.id,
-          expiresInSec: 0,
+          expiresInSec: defaultExpiry,
           visibility: dbViz,
           requireAccount: dbViz === "invite",
           singleUse: false,
@@ -210,9 +213,9 @@ export default function AlbumShareModal({
     if (loading) return "Loading…";
     if (!hasLink) return "Private · only you can see this";
     if (uiViz === "public") return "Anyone with the link can listen";
-    if (uiViz === "invite") return inviteCount === 0
-      ? "Invite only · no invitees yet"
-      : `Invite only · ${inviteCount} ${inviteCount === 1 ? "person" : "people"}`;
+    if (uiViz === "invite") return memberCount === 0
+      ? "Invite only · no one has joined yet"
+      : `Invite only · ${memberCount} ${memberCount === 1 ? "person joined" : "people joined"}`;
     return "—";
   })();
 
@@ -279,7 +282,7 @@ export default function AlbumShareModal({
 
           {/* Invite list — inline when Invite Only is selected */}
           {uiViz === "invite" && link && (
-            <InlineInviteList shareLinkId={link.id} onCountChange={setInviteCount} />
+            <ShareMembers shareLinkId={link.id} onCountChange={setMemberCount} />
           )}
 
           {/* More options disclosure */}
@@ -457,25 +460,23 @@ function ToggleRow({
   );
 }
 
-function InlineInviteList({
+function ShareMembers({
   shareLinkId,
   onCountChange,
 }: {
   shareLinkId: string;
   onCountChange: (n: number) => void;
 }) {
-  const [items, setItems] = useState<ShareInvite[]>([]);
+  const [members, setMembers] = useState<ShareMember[]>([]);
   const [loading, setLoading] = useState(true);
-  const [draft, setDraft] = useState("");
-  const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
     let cancel = false;
-    listInvites(shareLinkId)
+    listShareMembers(shareLinkId)
       .then((r) => {
         if (cancel) return;
-        setItems(r);
+        setMembers(r);
         onCountChange(r.length);
       })
       .catch((e) => !cancel && setErr(formatErr(e)))
@@ -483,77 +484,60 @@ function InlineInviteList({
     return () => { cancel = true; };
   }, [shareLinkId, onCountChange]);
 
-  const onAdd = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    setErr(null);
-    try {
-      const next = await addInvite(shareLinkId, draft);
-      setItems((it) => {
-        if (it.some((i) => i.email === next.email)) return it;
-        const updated = [...it, next];
-        onCountChange(updated.length);
-        return updated;
-      });
-      setDraft("");
-    } catch (e) {
-      setErr(formatErr(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const onRemove = async (id: string) => {
-    setItems((it) => {
-      const updated = it.filter((i) => i.id !== id);
-      onCountChange(updated.length);
-      return updated;
-    });
-    try {
-      await removeInvite(id);
-    } catch (e) {
-      setErr(formatErr(e));
-    }
-  };
-
+  if (loading) {
+    return (
+      <div className="glass-raised rounded-2xl px-5 py-4 text-[13px] text-white/45 text-center">
+        Loading members…
+      </div>
+    );
+  }
+  if (err) {
+    return <p className="text-[12px] text-red-400 px-2">{err}</p>;
+  }
+  if (members.length === 0) {
+    return (
+      <div className="glass-raised rounded-2xl px-5 py-5 text-center">
+        <p className="text-[14px] text-white/70">No one's joined yet</p>
+        <p className="text-[12px] text-white/45 mt-1">
+          Send the link. Anyone who signs in becomes a member.
+        </p>
+      </div>
+    );
+  }
   return (
-    <div className="glass-raised rounded-2xl p-4 space-y-3">
-      <form onSubmit={onAdd} className="flex gap-2">
-        <input
-          type="email"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder="add@email.com"
-          className="flex-1 min-w-0 bg-white/[0.04] border border-white/[0.08] focus:border-accent/60 focus:outline-none rounded-xl px-3.5 py-2.5 text-[14px] text-white placeholder:text-white/35"
-        />
-        <button
-          type="submit"
-          disabled={busy || !draft.trim()}
-          className="bg-accent hover:bg-accent/90 disabled:opacity-60 text-white text-[14px] font-semibold px-4 rounded-xl"
-        >
-          Add
-        </button>
-      </form>
-      {err && <p className="text-[12px] text-red-400">{err}</p>}
-      {loading ? (
-        <p className="text-[12px] text-white/45">Loading invitees…</p>
-      ) : items.length === 0 ? (
-        <p className="text-[12px] text-white/45">No invitees yet.</p>
-      ) : (
-        <ul className="divide-y divide-white/[0.06]">
-          {items.map((inv) => (
-            <li key={inv.id} className="py-2.5 flex items-center justify-between text-[14px]">
-              <span className="text-white truncate">{inv.email}</span>
-              <button
-                onClick={() => onRemove(inv.id)}
-                className="text-white/45 hover:text-red-400 shrink-0 px-2 text-[12px] font-medium"
-              >
-                Remove
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+    <div className="glass-raised rounded-2xl overflow-hidden divide-y divide-white/[0.06]">
+      {members.map((m) => {
+        const display = m.artist_name || m.email || "Anonymous";
+        const initial = display.charAt(0).toUpperCase();
+        return (
+          <div key={m.user_id} className="px-4 py-3 flex items-center gap-3">
+            {m.avatar_url ? (
+              <img src={m.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" />
+            ) : (
+              <div className="w-9 h-9 rounded-full bg-white/[0.08] flex items-center justify-center text-[13px] font-medium text-white/70 shrink-0">
+                {initial}
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="text-[14px] text-white truncate">{display}</div>
+              <div className="text-[12px] text-white/45">Joined {fmtJoinedAt(m.joined_at)}</div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
+}
+
+function fmtJoinedAt(iso: string): string {
+  const then = new Date(iso).getTime();
+  const now = Date.now();
+  const diffMin = Math.max(0, (now - then) / 60000);
+  if (diffMin < 1) return "just now";
+  if (diffMin < 60) return `${Math.floor(diffMin)}m ago`;
+  const diffHr = diffMin / 60;
+  if (diffHr < 24) return `${Math.floor(diffHr)}h ago`;
+  const diffDay = diffHr / 24;
+  if (diffDay < 7) return `${Math.floor(diffDay)}d ago`;
+  return new Date(iso).toLocaleDateString();
 }

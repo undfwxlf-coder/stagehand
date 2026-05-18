@@ -20,6 +20,14 @@ export const SHARE_DURATIONS: { label: string; seconds: number }[] = [
   { label: "Never", seconds: 0 },
 ];
 
+// Invite shares' `expires_at` is a JOIN cutoff, not a playback cutoff —
+// members keep listening past the cutoff. So the audio signed URL has to
+// outlive `expires_at` for invite shares. Always sign for 10y in that case.
+function signedTtlFor(visibility: ShareVisibility, expiresInSec: number): number {
+  if (visibility === "invite") return NEVER_EXPIRES_SIGNED_URL_SEC;
+  return expiresInSec === 0 ? NEVER_EXPIRES_SIGNED_URL_SEC : expiresInSec;
+}
+
 export async function createShareLink(opts: {
   trackId: string;
   version: Version;
@@ -30,7 +38,7 @@ export async function createShareLink(opts: {
   inviteEmails?: string[];
 }): Promise<ShareLink> {
   const { trackId, version, expiresInSec, visibility, requireAccount, singleUse, inviteEmails } = opts;
-  const signedUrlTtl = expiresInSec === 0 ? NEVER_EXPIRES_SIGNED_URL_SEC : expiresInSec;
+  const signedUrlTtl = signedTtlFor(visibility, expiresInSec);
   const { data, error } = await supabase.storage
     .from("audio")
     .createSignedUrl(version.storage_path, signedUrlTtl);
@@ -79,7 +87,7 @@ export async function createAlbumShareLink(opts: {
   inviteEmails?: string[];
 }): Promise<ShareLink> {
   const { albumId, expiresInSec, visibility, requireAccount, singleUse, inviteEmails } = opts;
-  const signedUrlTtl = expiresInSec === 0 ? NEVER_EXPIRES_SIGNED_URL_SEC : expiresInSec;
+  const signedUrlTtl = signedTtlFor(visibility, expiresInSec);
 
   const tracksRes = await supabase
     .from("tracks")
@@ -244,6 +252,28 @@ export function shareUrlFor(slug: string): string {
 }
 
 // =================================================================
+// Invite-share member roster
+// =================================================================
+
+export interface ShareMember {
+  user_id: string;
+  artist_name: string | null;
+  email: string | null;
+  avatar_url: string | null;
+  joined_at: string;
+}
+
+/** List people who have joined an invite-only share. Only the share's owner
+ *  can read the full roster (enforced server-side by list_share_members). */
+export async function listShareMembers(shareLinkId: string): Promise<ShareMember[]> {
+  const { data, error } = await supabase.rpc("list_share_members", {
+    p_share_link_id: shareLinkId,
+  });
+  if (error) throw error;
+  return (data ?? []) as ShareMember[];
+}
+
+// =================================================================
 // Re-sync helpers: keep existing shares pointing at the *current*
 // state of the project/track. Album shares carry a JSONB snapshot of
 // every track at creation time, and per-track shares carry a frozen
@@ -251,7 +281,12 @@ export function shareUrlFor(slug: string): string {
 // edits something so listeners on existing links see the new data.
 // =================================================================
 
-function ttlForExpiresAt(expiresAt: string | null | undefined): number {
+function ttlForExpiresAt(
+  expiresAt: string | null | undefined,
+  visibility: ShareVisibility | null | undefined,
+): number {
+  // Invite shares: members keep access past expiry, so audio URLs must too.
+  if (visibility === "invite") return NEVER_EXPIRES_SIGNED_URL_SEC;
   if (!expiresAt) return NEVER_EXPIRES_SIGNED_URL_SEC;
   const remaining = Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000);
   // 60s floor so a near-expired share still gets a usable URL.
@@ -263,7 +298,7 @@ function ttlForExpiresAt(expiresAt: string | null | undefined): number {
 export async function resyncTrackShares(trackId: string): Promise<void> {
   const shares = await supabase
     .from("share_links")
-    .select("id, expires_at")
+    .select("id, expires_at, visibility")
     .eq("track_id", trackId)
     .eq("revoked", false);
   if (shares.error) throw shares.error;
@@ -285,7 +320,7 @@ export async function resyncTrackShares(trackId: string): Promise<void> {
 
   await Promise.all(
     shares.data.map(async (s) => {
-      const ttl = ttlForExpiresAt(s.expires_at);
+      const ttl = ttlForExpiresAt(s.expires_at, s.visibility as ShareVisibility);
       const signed = await supabase.storage
         .from("audio")
         .createSignedUrl(version.data!.storage_path, ttl);
@@ -307,7 +342,7 @@ export async function resyncTrackShares(trackId: string): Promise<void> {
 export async function resyncAlbumShares(albumId: string): Promise<void> {
   const shares = await supabase
     .from("share_links")
-    .select("id, expires_at")
+    .select("id, expires_at, visibility")
     .eq("album_id", albumId)
     .eq("revoked", false);
   if (shares.error) throw shares.error;
@@ -350,7 +385,7 @@ export async function resyncAlbumShares(albumId: string): Promise<void> {
 
   await Promise.all(
     shares.data.map(async (s) => {
-      const ttl = ttlForExpiresAt(s.expires_at);
+      const ttl = ttlForExpiresAt(s.expires_at, s.visibility as ShareVisibility);
       const payload: AlbumShareTrackPayload[] = [];
       for (const t of playable) {
         const v = versionMap.get(t.current_version_id!);
