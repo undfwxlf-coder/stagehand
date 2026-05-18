@@ -54,6 +54,9 @@ export interface Version {
   storage_path: string;
   duration_sec: number | null;
   peaks: number[] | null;
+  format: string | null;
+  sample_rate: number | null;
+  is_lossless: boolean | null;
   uploaded_at: string;
 }
 

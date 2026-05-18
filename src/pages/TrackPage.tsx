@@ -3,7 +3,7 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import type { Album, Track, Version } from "../lib/database.types";
-import { downloadAudio, getSignedAudioUrl, safeFilename } from "../lib/audio";
+import { downloadAudio, formatQualityLabel, getSignedAudioUrl, safeFilename } from "../lib/audio";
 import { formatErr } from "../lib/errors";
 import { detectBpm, detectKey } from "../lib/audioAnalysis";
 import { usePlayer } from "../lib/player";
@@ -290,10 +290,29 @@ export default function TrackPage() {
                   <Play size={14} fill="currentColor" className="translate-x-[1px]" />
                 </button>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm text-white truncate">{v.label}</div>
+                  <div className="text-sm text-white truncate flex items-center gap-2">
+                    <span className="truncate">{v.label}</span>
+                    {v.is_lossless ? (
+                      <span
+                        title={formatQualityLabel(v.format, v.sample_rate) ?? "Original master quality"}
+                        className="shrink-0 inline-flex items-center gap-1 rounded-full border border-emerald-400/40 bg-emerald-500/10 text-emerald-300 px-1.5 py-0 text-[9px] uppercase tracking-wider"
+                      >
+                        <span className="w-1 h-1 rounded-full bg-emerald-300" />
+                        Lossless
+                      </span>
+                    ) : v.format ? (
+                      <span
+                        title="Compressed audio (lossy)"
+                        className="shrink-0 inline-flex items-center rounded-full border border-edge bg-panel2 text-muted px-1.5 py-0 text-[9px] uppercase tracking-wider"
+                      >
+                        {v.format}
+                      </span>
+                    ) : null}
+                  </div>
                   <div className="text-xs text-muted truncate">
                     {new Date(v.uploaded_at).toLocaleDateString()} ·{" "}
                     {v.duration_sec ? `${Math.floor(v.duration_sec / 60)}:${Math.floor(v.duration_sec % 60).toString().padStart(2, "0")}` : "—"}
+                    {v.sample_rate ? ` · ${Math.round(v.sample_rate / 100) / 10}kHz`.replace(".0kHz", "kHz") : ""}
                   </div>
                 </div>
                 {track.current_version_id === v.id ? (

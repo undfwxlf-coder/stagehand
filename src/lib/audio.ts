@@ -28,6 +28,34 @@ export function isAudioFile(file: File): boolean {
   return AUDIO_EXTS.has(ext);
 }
 
+const LOSSLESS_EXTS = new Set(["wav", "wave", "flac", "aiff", "aif"]);
+
+const FORMAT_BY_EXT: Record<string, string> = {
+  wav: "WAV",
+  wave: "WAV",
+  flac: "FLAC",
+  aiff: "AIFF",
+  aif: "AIFF",
+  mp3: "MP3",
+  m4a: "M4A",
+  aac: "AAC",
+  ogg: "OGG",
+  opus: "OPUS",
+  wma: "WMA",
+};
+
+export function audioFormatFromFilename(filename: string): { format: string | null; isLossless: boolean } {
+  const ext = filename.split(".").pop()?.toLowerCase() ?? "";
+  return { format: FORMAT_BY_EXT[ext] ?? null, isLossless: LOSSLESS_EXTS.has(ext) };
+}
+
+export function formatQualityLabel(format: string | null, sampleRate: number | null): string | null {
+  if (!format) return null;
+  if (!sampleRate || !isFinite(sampleRate)) return format;
+  const khz = sampleRate >= 1000 ? `${Math.round(sampleRate / 100) / 10}kHz`.replace(".0kHz", "kHz") : `${sampleRate}Hz`;
+  return `${format} · ${khz}`;
+}
+
 export function safeFilename(s: string): string {
   return s.replace(/[\\/:*?"<>|]+/g, "").trim().slice(0, 80) || "track";
 }

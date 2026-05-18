@@ -76,6 +76,9 @@ export interface AlbumShareTrackPayload {
   duration_sec: number | null;
   peaks: number[] | null;
   signed_url: string;
+  format: string | null;
+  sample_rate: number | null;
+  is_lossless: boolean | null;
 }
 
 export async function createAlbumShareLink(opts: {
@@ -112,7 +115,7 @@ export async function createAlbumShareLink(opts: {
   const versionIds = playable.map((t) => t.current_version_id!) ;
   const versionsRes = await supabase
     .from("versions")
-    .select("id, track_id, label, storage_path, duration_sec, peaks")
+    .select("id, track_id, label, storage_path, duration_sec, peaks, format, sample_rate, is_lossless")
     .in("id", versionIds);
   if (versionsRes.error) throw versionsRes.error;
   type VLite = {
@@ -122,6 +125,9 @@ export async function createAlbumShareLink(opts: {
     storage_path: string;
     duration_sec: number | null;
     peaks: number[] | null;
+    format: string | null;
+    sample_rate: number | null;
+    is_lossless: boolean | null;
   };
   const versionMap = new Map<string, VLite>(
     ((versionsRes.data ?? []) as VLite[]).map((v) => [v.id, v])
@@ -146,6 +152,9 @@ export async function createAlbumShareLink(opts: {
       duration_sec: v.duration_sec,
       peaks: v.peaks,
       signed_url: signed.signedUrl,
+      format: v.format,
+      sample_rate: v.sample_rate,
+      is_lossless: v.is_lossless,
     });
   }
 
@@ -371,13 +380,16 @@ export async function resyncAlbumShares(albumId: string): Promise<void> {
     storage_path: string;
     duration_sec: number | null;
     peaks: number[] | null;
+    format: string | null;
+    sample_rate: number | null;
+    is_lossless: boolean | null;
   };
   let versionMap = new Map<string, VLite>();
   if (playable.length > 0) {
     const versionIds = playable.map((t) => t.current_version_id!);
     const vRes = await supabase
       .from("versions")
-      .select("id, label, storage_path, duration_sec, peaks")
+      .select("id, label, storage_path, duration_sec, peaks, format, sample_rate, is_lossless")
       .in("id", versionIds);
     if (vRes.error) throw vRes.error;
     versionMap = new Map<string, VLite>(((vRes.data ?? []) as VLite[]).map((v) => [v.id, v]));
@@ -405,6 +417,9 @@ export async function resyncAlbumShares(albumId: string): Promise<void> {
           duration_sec: v.duration_sec,
           peaks: v.peaks,
           signed_url: signed.data.signedUrl,
+          format: v.format,
+          sample_rate: v.sample_rate,
+          is_lossless: v.is_lossless,
         });
       }
       await supabase.from("share_links").update({ payload }).eq("id", s.id);

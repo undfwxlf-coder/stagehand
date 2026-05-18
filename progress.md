@@ -148,6 +148,12 @@ A private workspace for music artists to track albums, store unreleased music, s
 - Playback uses the original artist's share link's signed URL; server-side withholds if revoked / expired / disabled / consumed.
 - Per-row Download where `allow_download` is true.
 
+### Lossless badge
+- The app never transcodes — listeners always receive the original uploaded file. A "LOSSLESS" pill on the listener UI now makes that visible (emerald glass chip with format + sample rate, e.g. "LOSSLESS · FLAC · 48kHz"). Lossy uploads (MP3 / M4A / AAC / OGG / OPUS) get a neutral format pill.
+- `versions` table gained `format` / `sample_rate` / `is_lossless` columns. Captured during the existing upload pipeline: format + lossless flag from filename extension, sample rate from the already-decoded `AudioBuffer`. Pre-existing rows are backfilled from the storage_path extension (sample_rate stays NULL until re-upload).
+- Album-share payloads (`AlbumShareTrackPayload`) and the resync helpers carry the new fields so listener-side badges work for both track and album shares.
+- Badge rendered on `ListenPage` (centered under title for track shares, inline next to the active album track title for album shares) and on `TrackPage` versions list (per-row).
+
 ### Timestamped comments
 - Signed-in listeners can pin reactions (🔥 ❤️ 😍 👏 💯 🤯) or short text comments to a specific playhead position on any shared track. Composer chip shows the live `@ M:SS` mark; clicking a comment's timestamp seeks the player to that moment.
 - Visible in **both** the listener view (`/listen/<slug>`) and the artist's `TrackPage` (`/track/<id>`).
@@ -249,7 +255,7 @@ A private workspace for music artists to track albums, store unreleased music, s
 - `profiles` (id → auth.users, artist_name, avatar_url)
 - `albums` (owner_id, title, artwork_url, status, target_release_date) — `ON DELETE CASCADE` to tracks
 - `tracks` (album_id, title, position, status, notes, bpm, song_key, allow_download, play_count, current_version_id, **editor_settings jsonb**)
-- `versions` (track_id, label, storage_path, duration_sec, peaks)
+- `versions` (track_id, label, storage_path, duration_sec, peaks, **format**, **sample_rate**, **is_lossless**)
 - `share_links` (**polymorphic**: track_id nullable, album_id nullable, exactly-one via check; slug, signed_url nullable, payload jsonb, expires_at nullable, revoked, visibility, require_account, single_use, consumed_at, play_count)
 - `share_invites` (legacy, email-based — no longer written by the new invite flow but kept for back-compat)
 - `share_members` (**new** — share_link_id, user_id, joined_at; unique on (share_link_id, user_id))
@@ -281,6 +287,7 @@ A private workspace for music artists to track albums, store unreleased music, s
 - ⏳ `migration_share_members.sql` — **needs to be run** for the new invite-v2 flow. Adds `share_members` table + RLS, rewrites `resolve_share` for membership-based access, updates `record_play` for membership semantics, adds `list_share_members`. Idempotent.
 - ⏳ `migration_track_status_waiting_on_feature.sql` — **needs to be run** to allow the new `waiting_on_feature` track status. Drops and re-adds the `tracks.status` CHECK constraint with the new value included. Idempotent.
 - ⏳ `migration_track_comments.sql` — **needs to be run** for timestamped comments. Adds `track_comments` table + RLS, the three RPCs (`list_track_comments`, `post_track_comment`, `delete_track_comment`), and adds the table to the `supabase_realtime` publication. Idempotent.
+- ⏳ `migration_version_audio_meta.sql` — **needs to be run** for the lossless badge. Adds `format` / `sample_rate` / `is_lossless` columns to `versions` and backfills existing rows from the storage_path extension. Idempotent.
 
 ### Environment / dashboard config that has to be done manually
 

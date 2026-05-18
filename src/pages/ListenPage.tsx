@@ -5,7 +5,7 @@ import { useParams } from "react-router-dom";
 import WaveSurfer from "wavesurfer.js";
 import { supabase } from "../lib/supabase";
 import type { ShareLink, Track, Version } from "../lib/database.types";
-import { downloadAudio, fmtTime, safeFilename } from "../lib/audio";
+import { downloadAudio, fmtTime, formatQualityLabel, safeFilename } from "../lib/audio";
 import { recordPlay } from "../lib/plays";
 import { isAlbumSaved, isTrackSaved, saveAlbum, saveTrack, unsaveAlbum, unsaveTrack } from "../lib/saves";
 import type { AlbumShareTrackPayload } from "../lib/share";
@@ -325,6 +325,13 @@ export default function ListenPage() {
                 {data.track.bpm != null && ` · ${data.track.bpm} BPM`}
                 {data.track.song_key && ` · ${data.track.song_key}`}
               </p>
+              <div className="mt-3 flex justify-center">
+                <QualityBadge
+                  isLossless={data.version.is_lossless}
+                  format={data.version.format}
+                  sampleRate={data.version.sample_rate}
+                />
+              </div>
             </div>
 
             <div className="bg-panel border border-edge rounded-2xl p-5 sm:p-8">
@@ -444,7 +451,15 @@ export default function ListenPage() {
                     {isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" className="translate-x-[1px]" />}
                   </button>
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm text-white truncate">{activeAlbumTrack.title}</div>
+                    <div className="text-sm text-white truncate flex items-center gap-2">
+                      <span className="truncate">{activeAlbumTrack.title}</span>
+                      <QualityBadge
+                        isLossless={activeAlbumTrack.is_lossless}
+                        format={activeAlbumTrack.format}
+                        sampleRate={activeAlbumTrack.sample_rate}
+                        compact
+                      />
+                    </div>
                     <div className="text-xs text-muted">
                       {activeAlbumTrack.version_label}
                       {activeAlbumTrack.bpm != null && ` · ${activeAlbumTrack.bpm} BPM`}
@@ -534,6 +549,45 @@ export default function ListenPage() {
         </div>
       </footer>
     </div>
+  );
+}
+
+function QualityBadge({
+  isLossless,
+  format,
+  sampleRate,
+  compact = false,
+}: {
+  isLossless: boolean | null;
+  format: string | null;
+  sampleRate: number | null;
+  compact?: boolean;
+}) {
+  if (!format && isLossless == null) return null;
+  const detail = formatQualityLabel(format, sampleRate);
+  if (isLossless) {
+    return (
+      <span
+        title={detail ?? "Original master quality"}
+        className={`inline-flex items-center gap-1.5 rounded-full border border-emerald-400/40 bg-emerald-500/10 text-emerald-300 ${
+          compact ? "px-1.5 py-0 text-[9px]" : "px-2.5 py-0.5 text-[10px]"
+        } uppercase tracking-wider`}
+      >
+        <span className="w-1 h-1 rounded-full bg-emerald-300" />
+        Lossless{!compact && detail ? <span className="text-emerald-300/70 normal-case tracking-normal">· {detail}</span> : null}
+      </span>
+    );
+  }
+  if (!detail) return null;
+  return (
+    <span
+      title="Compressed audio (lossy)"
+      className={`inline-flex items-center rounded-full border border-edge bg-panel2 text-muted ${
+        compact ? "px-1.5 py-0 text-[9px]" : "px-2.5 py-0.5 text-[10px]"
+      } uppercase tracking-wider`}
+    >
+      {detail}
+    </span>
   );
 }
 

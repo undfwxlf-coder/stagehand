@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { supabase } from "./supabase";
 import { decodeAudio, detectBpm, detectKey, peaksFromBuffer } from "./audioAnalysis";
-import { inferAudioMeta, inferVersionLabel } from "./audio";
+import { audioFormatFromFilename, inferAudioMeta, inferVersionLabel } from "./audio";
 import { formatErr } from "./errors";
 import { resyncSharesForTrack } from "./share";
 import type { Track, Version } from "./database.types";
@@ -151,9 +151,19 @@ export const useUploadStore = create<UploadState>((set, get) => ({
 
         patch({ phase: "saving", message: PHASE_MESSAGES.saving, progress: UPLOAD_END_PCT });
         const label = inferVersionLabel(file.name, existingVersionCount);
+        const fmt = audioFormatFromFilename(file.name);
         const ins = await supabase
           .from("versions")
-          .insert({ track_id: track.id, label, storage_path: path, duration_sec: duration, peaks })
+          .insert({
+            track_id: track.id,
+            label,
+            storage_path: path,
+            duration_sec: duration,
+            peaks,
+            format: fmt.format,
+            sample_rate: Math.round(audioBuffer.sampleRate) || null,
+            is_lossless: fmt.isLossless,
+          })
           .select()
           .single();
         if (ins.error) throw ins.error;
