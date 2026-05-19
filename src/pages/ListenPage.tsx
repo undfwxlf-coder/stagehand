@@ -14,6 +14,7 @@ import Logo from "../components/Logo";
 import CommentFeed from "../components/CommentFeed";
 import {
   AudioLines,
+  ChevronDown,
   Download,
   Heart,
   ListMusic,
@@ -109,6 +110,11 @@ export default function ListenPage() {
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showQueue, setShowQueue] = useState(false);
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
+  // For album shares: 'landing' shows the album cover + track list (the legacy
+  // listener view). 'player' is the Apple Music-style now-playing screen for
+  // the active track. Clicking a row in landing switches to player; the
+  // back chevron returns. Track shares always render player.
+  const [albumView, setAlbumView] = useState<"landing" | "player">("landing");
 
   const containerRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
@@ -182,6 +188,9 @@ export default function ListenPage() {
 
   useEffect(() => {
     if (!data || !containerRef.current) return;
+    // Album shares wait for the player sub-view to mount before initializing
+    // wavesurfer — the container only exists in the now-playing view.
+    if (data.type === "album" && albumView !== "player") return;
 
     if (wsRef.current) {
       wsRef.current.destroy();
@@ -264,7 +273,7 @@ export default function ListenPage() {
       ws.destroy();
       wsRef.current = null;
     };
-  }, [data, activeAlbumTrack, activeAlbumTrackIdx]);
+  }, [data, activeAlbumTrack, activeAlbumTrackIdx, albumView]);
 
   const toggle = () => {
     const ws = wsRef.current;
@@ -457,8 +466,27 @@ export default function ListenPage() {
                 : "Streaming-only — please don't redistribute."}
             </p>
           </div>
-        ) : data?.type === "album" && activeAlbumTrack ? (
+        ) : data?.type === "album" && activeAlbumTrack && albumView === "player" ? (
           <div className="max-w-md w-full">
+            <div className="mb-5 flex items-center justify-between">
+              <button
+                onClick={() => {
+                  if (wsRef.current) {
+                    try { wsRef.current.pause(); } catch { /* ignore */ }
+                  }
+                  setAlbumView("landing");
+                }}
+                aria-label="Back to album"
+                className="inline-flex items-center gap-1.5 text-xs text-muted hover:text-white transition"
+              >
+                <ChevronDown size={16} />
+                <span className="truncate max-w-[14rem]">{data.album.title}</span>
+              </button>
+              <span className="text-[10px] uppercase tracking-wider text-muted">
+                {activeAlbumTrackIdx + 1} / {data.tracks.length}
+              </span>
+            </div>
+
             <NowPlayingArtwork artworkUrl={data.album.artwork_url} />
 
             <div className="mt-7 flex items-start gap-3">
@@ -562,6 +590,100 @@ export default function ListenPage() {
                 ? "Single-use link — refreshing will lock you out. "
                 : data.link.expires_at
                 ? `Expires ${new Date(data.link.expires_at).toLocaleDateString()}. `
+                : ""}
+              Streaming-only — please don't redistribute.
+            </p>
+          </div>
+        ) : data?.type === "album" ? (
+          <div className="max-w-3xl w-full">
+            <div className="flex flex-col sm:flex-row gap-5 sm:gap-6 items-center sm:items-start mb-6">
+              <div className="w-40 h-40 sm:w-48 sm:h-48 rounded-2xl bg-gradient-to-br from-panel2 to-ink border border-edge flex items-center justify-center text-edge shrink-0 overflow-hidden">
+                {data.album.artwork_url ? (
+                  <img src={data.album.artwork_url} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <Music size={56} strokeWidth={1.2} />
+                )}
+              </div>
+              <div className="flex-1 min-w-0 w-full text-center sm:text-left">
+                <p className="text-xs uppercase tracking-wider text-muted">A private album listen</p>
+                <h1 className="text-3xl sm:text-4xl font-semibold text-white tracking-tight mt-1 break-words">
+                  {data.album.title}
+                </h1>
+                <p className="text-sm text-muted mt-1">
+                  {data.artist_name ?? "Stagehand"} · {data.tracks.length} track{data.tracks.length === 1 ? "" : "s"}
+                </p>
+                <div className="mt-4 flex items-center gap-2 justify-center sm:justify-start">
+                  <button
+                    onClick={() => {
+                      wantsPlayOnReadyRef.current = true;
+                      setActiveAlbumTrackIdx(0);
+                      setAlbumView("player");
+                    }}
+                    className="px-4 py-2 rounded-lg text-sm font-medium bg-white text-ink hover:bg-white/90 transition inline-flex items-center gap-1.5"
+                  >
+                    <Play size={14} fill="currentColor" className="translate-x-[1px]" />
+                    Play
+                  </button>
+                  {user && (
+                    <button
+                      onClick={onToggleSave}
+                      disabled={savingState}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium border transition disabled:opacity-60 inline-flex items-center gap-1.5 ${
+                        saved
+                          ? "bg-accent/15 border-accent/40 text-accent"
+                          : "bg-panel2 border-edge text-white hover:border-accent/60"
+                      }`}
+                    >
+                      <Heart size={14} fill={saved ? "currentColor" : "none"} />
+                      {savingState ? "…" : saved ? "Saved" : "Save"}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-panel border border-edge rounded-2xl p-4 sm:p-5">
+              <ul className="divide-y divide-edge -mx-4 sm:-mx-5">
+                {data.tracks.map((t, i) => (
+                  <li key={t.track_id} className="px-4 sm:px-5 py-2.5 flex items-center gap-3">
+                    <button
+                      onClick={() => {
+                        wantsPlayOnReadyRef.current = true;
+                        setActiveAlbumTrackIdx(i);
+                        setAlbumView("player");
+                      }}
+                      className="w-7 h-7 rounded-full text-muted hover:text-white hover:bg-ink flex items-center justify-center shrink-0"
+                      aria-label={`Play ${t.title}`}
+                    >
+                      <Play size={12} fill="currentColor" className="translate-x-[1px]" />
+                    </button>
+                    <span className="text-muted text-xs tabular-nums w-5 shrink-0">{i + 1}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm text-white truncate">{t.title}</div>
+                      <div className="text-xs text-muted truncate">
+                        {t.version_label}
+                        {t.bpm != null && ` · ${t.bpm} BPM`}
+                        {t.song_key && ` · ${t.song_key}`}
+                      </div>
+                    </div>
+                    <div className="text-xs text-muted tabular-nums shrink-0">
+                      {t.duration_sec ? fmtTime(t.duration_sec) : "—"}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <p className="text-center text-xs text-muted mt-6">
+              {user ? (
+                <>Saved albums appear in your Stagehand library.<br /></>
+              ) : (
+                <><a href="/auth" className="underline hover:text-white">Sign in</a> to save this album to your library.<br /></>
+              )}
+              {data.link.single_use
+                ? "This is a single-use link — refreshing will lock you out. "
+                : data.link.expires_at
+                ? `This link expires ${new Date(data.link.expires_at).toLocaleDateString()}. `
                 : ""}
               Streaming-only — please don't redistribute.
             </p>
