@@ -13,6 +13,7 @@ import { useAuth } from "../lib/auth";
 import Logo from "../components/Logo";
 import CommentFeed from "../components/CommentFeed";
 import {
+  AudioLines,
   Download,
   Heart,
   ListMusic,
@@ -190,11 +191,11 @@ export default function ListenPage() {
 
     const ws = WaveSurfer.create({
       container: containerRef.current,
-      height: 64,
+      height: 28,
       waveColor: "#3a4150",
       progressColor: "#ff5e3a",
       cursorColor: "rgba(255,255,255,0.4)",
-      barWidth: 2,
+      barWidth: 1.5,
       barRadius: 1,
       barGap: 1,
       normalize: true,
@@ -685,20 +686,20 @@ export default function ListenPage() {
 
 function NowPlayingArtwork({ artworkUrl }: { artworkUrl: string | null }) {
   return (
-    <div className="relative mx-auto aspect-square w-full max-w-[360px]">
+    <div className="relative mx-auto aspect-square w-full max-w-[260px]">
       {artworkUrl && (
         <img
           src={artworkUrl}
           alt=""
           aria-hidden
-          className="absolute inset-0 w-full h-full object-cover rounded-3xl blur-3xl opacity-50 scale-110 pointer-events-none"
+          className="absolute inset-0 w-full h-full object-cover rounded-2xl blur-3xl opacity-50 scale-110 pointer-events-none"
         />
       )}
-      <div className="relative w-full h-full rounded-3xl overflow-hidden bg-gradient-to-br from-panel2 to-ink border border-edge shadow-2xl flex items-center justify-center text-edge">
+      <div className="relative w-full h-full rounded-2xl overflow-hidden bg-gradient-to-br from-panel2 to-ink border border-edge shadow-2xl flex items-center justify-center text-edge">
         {artworkUrl ? (
           <img src={artworkUrl} alt="" className="w-full h-full object-cover" />
         ) : (
-          <Music size={64} strokeWidth={1.2} />
+          <Music size={48} strokeWidth={1.2} />
         )}
       </div>
     </div>
@@ -879,12 +880,12 @@ function QualityBadge({
     return (
       <span
         title={detail ?? "Original master quality"}
-        className={`inline-flex items-center gap-1.5 rounded-full border border-emerald-400/40 bg-emerald-500/10 text-emerald-300 ${
-          compact ? "px-1.5 py-0 text-[9px]" : "px-2.5 py-0.5 text-[10px]"
-        } uppercase tracking-wider`}
+        className={`inline-flex items-center gap-1 rounded-md bg-panel2/80 text-white/85 ${
+          compact ? "px-1.5 py-0.5 text-[10px]" : "px-2 py-0.5 text-[11px]"
+        } font-medium tracking-tight`}
       >
-        <span className="w-1 h-1 rounded-full bg-emerald-300" />
-        Lossless{!compact && detail ? <span className="text-emerald-300/70 normal-case tracking-normal">· {detail}</span> : null}
+        <AudioLines size={compact ? 10 : 12} strokeWidth={2.2} />
+        Lossless
       </span>
     );
   }
