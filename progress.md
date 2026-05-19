@@ -148,6 +148,15 @@ A private workspace for music artists to track albums, store unreleased music, s
 - Playback uses the original artist's share link's signed URL; server-side withholds if revoked / expired / disabled / consumed.
 - Per-row Download where `allow_download` is true.
 
+### ListenPage — Now Playing redesign
+- Apple Music-style now-playing layout for `/listen/<slug>`. Large square artwork (max 360px) with a soft blurred halo of the same image behind it for ambient glow; bold title and artist underneath; round white play button, prev/next on album shares.
+- Progress is a thin wavesurfer waveform; the **Lossless pill** is now centered on the progress-meta row between `M:SS` elapsed and `-M:SS` remaining (Apple Music's exact placement).
+- Bottom action row of pill cards: **Comments**, **Share** (Web Share API with clipboard fallback), **Download** (if `allow_download`), **Queue** (album shares only, opens the track list), **Save** / **Sign in** depending on auth state.
+- **Comments** moved out of the inline feed and into a slide-up `BottomSheet` (backdrop blur, drag handle on mobile, X to close, Esc binding). Clicking a comment timestamp seeks the player *and* closes the sheet so you land back on the moment.
+- **More menu** (`⋯` next to the title) is a second BottomSheet with: copy share link, save/unsave, download, sign-in-to-comment. Anything that doesn't fit on the bottom row lives here.
+- Album shares get a **Queue** BottomSheet with the full track list (same layout as the old inline list, just lifted into the sheet). Prev/Next on the transport navigates the queue and carries the playing intent through the wavesurfer rebuild.
+- `resolve_share` now returns `album_artwork_url` and `artist_name` for track shares (and `artist_name` for album shares) so the listener sees the cover + the artist's name without RLS gymnastics — see `migration_resolve_share_artwork.sql`. Behavior is otherwise unchanged.
+
 ### Lossless badge
 - The app never transcodes — listeners always receive the original uploaded file. A "LOSSLESS" pill on the listener UI now makes that visible (emerald glass chip with format + sample rate, e.g. "LOSSLESS · FLAC · 48kHz"). Lossy uploads (MP3 / M4A / AAC / OGG / OPUS) get a neutral format pill.
 - `versions` table gained `format` / `sample_rate` / `is_lossless` columns. Captured during the existing upload pipeline: format + lossless flag from filename extension, sample rate from the already-decoded `AudioBuffer`. Pre-existing rows are backfilled from the storage_path extension (sample_rate stays NULL until re-upload).
@@ -288,6 +297,7 @@ A private workspace for music artists to track albums, store unreleased music, s
 - ⏳ `migration_track_status_waiting_on_feature.sql` — **needs to be run** to allow the new `waiting_on_feature` track status. Drops and re-adds the `tracks.status` CHECK constraint with the new value included. Idempotent.
 - ⏳ `migration_track_comments.sql` — **needs to be run** for timestamped comments. Adds `track_comments` table + RLS, the three RPCs (`list_track_comments`, `post_track_comment`, `delete_track_comment`), and adds the table to the `supabase_realtime` publication. Idempotent.
 - ⏳ `migration_version_audio_meta.sql` — **needs to be run** for the lossless badge. Adds `format` / `sample_rate` / `is_lossless` columns to `versions` and backfills existing rows from the storage_path extension. Idempotent.
+- ⏳ `migration_resolve_share_artwork.sql` — **needs to be run** for the redesigned listener UI. Replaces `resolve_share` so its responses also carry `album_artwork_url` (track shares) and `artist_name` (both types). All other status-code behavior unchanged. Idempotent.
 
 ### Environment / dashboard config that has to be done manually
 
