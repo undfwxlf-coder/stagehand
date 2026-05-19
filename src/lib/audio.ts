@@ -45,7 +45,10 @@ const FORMAT_BY_EXT: Record<string, string> = {
 };
 
 export function audioFormatFromFilename(filename: string): { format: string | null; isLossless: boolean } {
-  const ext = filename.split(".").pop()?.toLowerCase() ?? "";
+  // Handles plain filenames, storage paths, and signed URLs (strip query string + any path after the last `/`).
+  const pathOnly = filename.split("?")[0];
+  const base = pathOnly.split("/").pop() ?? pathOnly;
+  const ext = base.split(".").pop()?.toLowerCase() ?? "";
   return { format: FORMAT_BY_EXT[ext] ?? null, isLossless: LOSSLESS_EXTS.has(ext) };
 }
 

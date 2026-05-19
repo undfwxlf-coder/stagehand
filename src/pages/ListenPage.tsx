@@ -5,7 +5,7 @@ import { useParams } from "react-router-dom";
 import WaveSurfer from "wavesurfer.js";
 import { supabase } from "../lib/supabase";
 import type { ShareLink, Track, Version } from "../lib/database.types";
-import { downloadAudio, fmtTime, formatQualityLabel, safeFilename } from "../lib/audio";
+import { audioFormatFromFilename, downloadAudio, fmtTime, formatQualityLabel, safeFilename } from "../lib/audio";
 import { recordPlay } from "../lib/plays";
 import { isAlbumSaved, isTrackSaved, saveAlbum, saveTrack, unsaveAlbum, unsaveTrack } from "../lib/saves";
 import type { AlbumShareTrackPayload } from "../lib/share";
@@ -408,13 +408,18 @@ export default function ListenPage() {
             </div>
 
             <div ref={containerRef} className="cursor-pointer mt-6" />
-            <ProgressMeta
-              position={position}
-              duration={duration}
-              isLossless={data.version.is_lossless}
-              format={data.version.format}
-              sampleRate={data.version.sample_rate}
-            />
+            {(() => {
+              const fb = audioFormatFromFilename(data.version.storage_path ?? data.link.signed_url ?? "");
+              return (
+                <ProgressMeta
+                  position={position}
+                  duration={duration}
+                  isLossless={data.version.is_lossless ?? fb.isLossless}
+                  format={data.version.format ?? fb.format}
+                  sampleRate={data.version.sample_rate}
+                />
+              );
+            })()}
 
             <div className="flex items-center justify-center gap-12 mt-7">
               <button
@@ -490,13 +495,18 @@ export default function ListenPage() {
             </div>
 
             <div ref={containerRef} className="cursor-pointer mt-6" />
-            <ProgressMeta
-              position={position}
-              duration={duration}
-              isLossless={activeAlbumTrack.is_lossless}
-              format={activeAlbumTrack.format}
-              sampleRate={activeAlbumTrack.sample_rate}
-            />
+            {(() => {
+              const fb = audioFormatFromFilename(activeAlbumTrack.signed_url ?? "");
+              return (
+                <ProgressMeta
+                  position={position}
+                  duration={duration}
+                  isLossless={activeAlbumTrack.is_lossless ?? fb.isLossless}
+                  format={activeAlbumTrack.format ?? fb.format}
+                  sampleRate={activeAlbumTrack.sample_rate}
+                />
+              );
+            })()}
 
             <div className="flex items-center justify-center gap-8 mt-7">
               <IconButton
