@@ -153,13 +153,16 @@ export default function NowPlayingOverlay() {
               </IconBtn>
             </div>
 
-            <div className="mt-9 grid grid-cols-3 sm:grid-cols-4 gap-2">
+            <div className="mt-9 grid grid-cols-4 gap-1.5 sm:gap-2">
               <ActionBtn onClick={() => setShowComments(true)} icon={<MessageSquare size={18} />} label="Comments" />
               <ActionBtnLink to={`/edit/${current.trackId}`} onClick={() => setExpanded(false)} icon={<SlidersHorizontal size={18} />} label="Edit" />
               <ActionBtnLink to={`/track/${current.trackId}`} onClick={() => setExpanded(false)} icon={<Download size={18} />} label="Details" />
-              {queue.length > 1 && (
-                <ActionBtn onClick={() => setShowQueue(true)} icon={<ListMusic size={18} />} label={`Queue · ${queue.length}`} />
-              )}
+              <ActionBtn
+                onClick={() => setShowQueue(true)}
+                icon={<ListMusic size={18} />}
+                label={queue.length > 1 ? `Queue · ${queue.length}` : "Queue"}
+                disabled={queue.length <= 1}
+              />
             </div>
 
             <div className="h-10" />
@@ -315,10 +318,10 @@ function ActionBtn({
     <button
       onClick={onClick}
       disabled={disabled}
-      className="flex flex-col items-center justify-center gap-1.5 py-3 px-2 rounded-2xl bg-panel/60 border border-edge hover:border-accent/60 transition disabled:opacity-40 text-white/85"
+      className="flex flex-col items-center justify-center gap-1.5 py-3 px-1.5 sm:px-2 rounded-2xl bg-panel/60 border border-edge hover:border-accent/60 transition disabled:opacity-40 text-white/85 min-w-0"
     >
       <span className="shrink-0">{icon}</span>
-      <span className="text-[11px] tracking-wide truncate max-w-full">{label}</span>
+      <span className="text-[10px] sm:text-[11px] tracking-wide truncate max-w-full">{label}</span>
     </button>
   );
 }
@@ -338,10 +341,10 @@ function ActionBtnLink({
     <Link
       to={to}
       onClick={onClick}
-      className="flex flex-col items-center justify-center gap-1.5 py-3 px-2 rounded-2xl bg-panel/60 border border-edge hover:border-accent/60 transition text-white/85"
+      className="flex flex-col items-center justify-center gap-1.5 py-3 px-1.5 sm:px-2 rounded-2xl bg-panel/60 border border-edge hover:border-accent/60 transition text-white/85 min-w-0"
     >
       <span className="shrink-0">{icon}</span>
-      <span className="text-[11px] tracking-wide truncate max-w-full">{label}</span>
+      <span className="text-[10px] sm:text-[11px] tracking-wide truncate max-w-full">{label}</span>
     </Link>
   );
 }
