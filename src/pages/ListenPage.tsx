@@ -12,6 +12,7 @@ import type { AlbumShareTrackPayload } from "../lib/share";
 import { useAuth } from "../lib/auth";
 import Logo from "../components/Logo";
 import CommentFeed from "../components/CommentFeed";
+import BottomSheet from "../components/BottomSheet";
 import {
   AudioLines,
   ChevronDown,
@@ -27,7 +28,6 @@ import {
   Share2,
   SkipBack,
   SkipForward,
-  X,
 } from "lucide-react";
 
 interface ResolvedTrackShare {
@@ -612,19 +612,8 @@ export default function ListenPage() {
                 <p className="text-sm text-muted mt-1">
                   {data.artist_name ?? "Stagehand"} · {data.tracks.length} track{data.tracks.length === 1 ? "" : "s"}
                 </p>
-                <div className="mt-4 flex items-center gap-2 justify-center sm:justify-start">
-                  <button
-                    onClick={() => {
-                      wantsPlayOnReadyRef.current = true;
-                      setActiveAlbumTrackIdx(0);
-                      setAlbumView("player");
-                    }}
-                    className="px-4 py-2 rounded-lg text-sm font-medium bg-white text-ink hover:bg-white/90 transition inline-flex items-center gap-1.5"
-                  >
-                    <Play size={14} fill="currentColor" className="translate-x-[1px]" />
-                    Play
-                  </button>
-                  {user && (
+                {user && (
+                  <div className="mt-4 flex items-center justify-center sm:justify-start">
                     <button
                       onClick={onToggleSave}
                       disabled={savingState}
@@ -637,38 +626,40 @@ export default function ListenPage() {
                       <Heart size={14} fill={saved ? "currentColor" : "none"} />
                       {savingState ? "…" : saved ? "Saved" : "Save"}
                     </button>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             </div>
 
             <div className="bg-panel border border-edge rounded-2xl p-4 sm:p-5">
               <ul className="divide-y divide-edge -mx-4 sm:-mx-5">
                 {data.tracks.map((t, i) => (
-                  <li key={t.track_id} className="px-4 sm:px-5 py-2.5 flex items-center gap-3">
+                  <li key={t.track_id}>
                     <button
                       onClick={() => {
                         wantsPlayOnReadyRef.current = true;
                         setActiveAlbumTrackIdx(i);
                         setAlbumView("player");
                       }}
-                      className="w-7 h-7 rounded-full text-muted hover:text-white hover:bg-ink flex items-center justify-center shrink-0"
+                      className="w-full px-4 sm:px-5 py-2.5 flex items-center gap-3 hover:bg-panel2/40 active:bg-panel2/60 transition text-left"
                       aria-label={`Play ${t.title}`}
                     >
-                      <Play size={12} fill="currentColor" className="translate-x-[1px]" />
+                      <span className="w-7 h-7 rounded-full text-muted flex items-center justify-center shrink-0">
+                        <Play size={12} fill="currentColor" className="translate-x-[1px]" />
+                      </span>
+                      <span className="text-muted text-xs tabular-nums w-5 shrink-0">{i + 1}</span>
+                      <span className="flex-1 min-w-0">
+                        <span className="block text-sm text-white truncate">{t.title}</span>
+                        <span className="block text-xs text-muted truncate">
+                          {t.version_label}
+                          {t.bpm != null && ` · ${t.bpm} BPM`}
+                          {t.song_key && ` · ${t.song_key}`}
+                        </span>
+                      </span>
+                      <span className="text-xs text-muted tabular-nums shrink-0">
+                        {t.duration_sec ? fmtTime(t.duration_sec) : "—"}
+                      </span>
                     </button>
-                    <span className="text-muted text-xs tabular-nums w-5 shrink-0">{i + 1}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm text-white truncate">{t.title}</div>
-                      <div className="text-xs text-muted truncate">
-                        {t.version_label}
-                        {t.bpm != null && ` · ${t.bpm} BPM`}
-                        {t.song_key && ` · ${t.song_key}`}
-                      </div>
-                    </div>
-                    <div className="text-xs text-muted tabular-nums shrink-0">
-                      {t.duration_sec ? fmtTime(t.duration_sec) : "—"}
-                    </div>
                   </li>
                 ))}
               </ul>
@@ -913,55 +904,6 @@ function ActionButton({
       <span className="shrink-0">{icon}</span>
       <span className="text-[11px] tracking-wide truncate max-w-full">{label}</span>
     </button>
-  );
-}
-
-function BottomSheet({
-  children,
-  onClose,
-  title,
-  compact = false,
-}: {
-  children: React.ReactNode;
-  onClose: () => void;
-  title: string;
-  compact?: boolean;
-}) {
-  useEffect(() => {
-    const onEsc = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onEsc);
-    return () => window.removeEventListener("keydown", onEsc);
-  }, [onClose]);
-
-  return (
-    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center">
-      <div
-        onClick={onClose}
-        className="absolute inset-0 bg-black/70 backdrop-blur-xl"
-        aria-hidden
-      />
-      <div
-        className={`relative w-full sm:max-w-lg bg-panel border border-edge rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col ${
-          compact ? "max-h-[60vh]" : "max-h-[80vh] sm:max-h-[75vh]"
-        }`}
-        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-      >
-        <div className="flex items-center justify-between px-4 sm:px-5 pt-3 pb-2 shrink-0">
-          <div className="w-10 h-1 bg-edge rounded-full mx-auto absolute left-1/2 -translate-x-1/2 top-2 sm:hidden" />
-          <h2 className="text-sm font-medium text-white tracking-tight truncate pt-1">{title}</h2>
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            className="w-8 h-8 rounded-full text-muted hover:text-white hover:bg-panel2 flex items-center justify-center"
-          >
-            <X size={16} />
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto px-4 sm:px-5 pb-5">{children}</div>
-      </div>
-    </div>
   );
 }
 

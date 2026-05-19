@@ -39,6 +39,9 @@ interface PlayerState {
   // it, applies the seek to its wavesurfer, then clears via consumeSeek().
   // Bumped via a nonce so repeated seeks to the same second still trigger.
   pendingSeek: { sec: number; nonce: number } | null;
+  // Full-screen now-playing overlay visibility. Auto-set on play(); user
+  // can dismiss via the chevron-down and re-open by tapping PlayerBar.
+  expanded: boolean;
   queue: PlayerTrack[];
   volume: number; // 0..1
   muted: boolean;
@@ -52,6 +55,7 @@ interface PlayerState {
   toggleMute: () => void;
   seekTo: (sec: number) => void;
   consumeSeek: () => void;
+  setExpanded: (b: boolean) => void;
   next: () => void;
   prev: () => void;
 }
@@ -80,10 +84,11 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   positionSec: 0,
   durationSec: 0,
   pendingSeek: null,
+  expanded: false,
   queue: [],
   volume: initialVolume,
   muted: initialMuted,
-  play: (t) => set({ current: t, isPlaying: true, positionSec: 0 }),
+  play: (t) => set({ current: t, isPlaying: true, positionSec: 0, expanded: true }),
   toggle: () => set((s) => ({ isPlaying: !s.isPlaying })),
   setPlaying: (p) => set({ isPlaying: p }),
   setPosition: (s) => set({ positionSec: s }),
@@ -104,6 +109,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   },
   seekTo: (sec) => set({ pendingSeek: { sec: Math.max(0, sec), nonce: Date.now() } }),
   consumeSeek: () => set({ pendingSeek: null }),
+  setExpanded: (b) => set({ expanded: b }),
   next: () => {
     const { queue, current } = get();
     if (!current) return;

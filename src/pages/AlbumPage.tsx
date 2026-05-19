@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { formatErr } from "../lib/errors";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -58,8 +59,9 @@ interface TrackWithVersion extends Track {
   version?: Version | null;
 }
 
-// Mobile: title (1fr) | status (108) | play (28) | more (28). Desktop: handle | # | title | status | length | play | more.
-const ROW_GRID = "grid-cols-[1fr_108px_28px_28px] sm:grid-cols-[24px_24px_1fr_140px_100px_28px_28px]";
+// Mobile: title (1fr) | status (108) | more (28). Desktop: handle | # | title | status | length | more.
+// Tap the title to play; the play button is gone now that the row is the play affordance.
+const ROW_GRID = "grid-cols-[1fr_108px_28px] sm:grid-cols-[24px_24px_1fr_140px_100px_28px]";
 
 export default function AlbumPage() {
   const { albumId } = useParams<{ albumId: string }>();
@@ -73,6 +75,28 @@ export default function AlbumPage() {
   const artFileRef = useRef<HTMLInputElement>(null);
   const addTrackFileRef = useRef<HTMLInputElement>(null);
   const [addTrackMenuOpen, setAddTrackMenuOpen] = useState(false);
+  const addTrackBtnRef = useRef<HTMLButtonElement>(null);
+  const [addTrackMenuPos, setAddTrackMenuPos] = useState<{ left: number; bottom: number; width: number } | null>(null);
+
+  useLayoutEffect(() => {
+    if (!addTrackMenuOpen) return;
+    const update = () => {
+      const rect = addTrackBtnRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setAddTrackMenuPos({
+        left: rect.left,
+        bottom: window.innerHeight - rect.top + 8,
+        width: rect.width,
+      });
+    };
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [addTrackMenuOpen]);
   const [showAlbumSheet, setShowAlbumSheet] = useState(false);
   const [detailsTrackId, setDetailsTrackId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState(false);
@@ -528,16 +552,24 @@ export default function AlbumPage() {
             }}
           />
           <button
+            ref={addTrackBtnRef}
             type="button"
             onClick={() => setAddTrackMenuOpen((v) => !v)}
             className="w-full bg-accent hover:bg-accent/90 text-white text-sm font-medium px-4 py-2 rounded-lg"
           >
             + Add track
           </button>
-          {addTrackMenuOpen && (
+          {addTrackMenuOpen && addTrackMenuPos && createPortal(
             <>
-              <div className="fixed inset-0 z-30" onClick={() => setAddTrackMenuOpen(false)} aria-hidden />
-              <div className="absolute left-3 right-3 sm:left-5 sm:right-5 bottom-full mb-2 bg-panel border border-edge rounded-lg shadow-xl py-1 z-40">
+              <div className="fixed inset-0 z-[60]" onClick={() => setAddTrackMenuOpen(false)} aria-hidden />
+              <div
+                className="fixed bg-panel border border-edge rounded-lg shadow-xl py-1 z-[61]"
+                style={{
+                  left: addTrackMenuPos.left,
+                  bottom: addTrackMenuPos.bottom,
+                  width: addTrackMenuPos.width,
+                }}
+              >
                 <button
                   onClick={() => {
                     setAddTrackMenuOpen(false);
@@ -545,9 +577,9 @@ export default function AlbumPage() {
                   }}
                   className="w-full text-left px-3 py-2.5 text-sm text-white hover:bg-panel2 flex items-center gap-2.5"
                 >
-                  <UploadCloud size={16} className="text-muted" />
-                  <span className="flex-1">From audio file</span>
-                  <span className="text-xs text-muted">WAV, MP3, AIFF, FLAC, M4A</span>
+                  <UploadCloud size={16} className="text-muted shrink-0" />
+                  <span className="flex-1 min-w-0 truncate">From audio file</span>
+                  <span className="hidden sm:inline text-xs text-muted">WAV, MP3, AIFF, FLAC, M4A</span>
                 </button>
                 <button
                   onClick={() => {
@@ -556,14 +588,15 @@ export default function AlbumPage() {
                   }}
                   className="w-full text-left px-3 py-2.5 text-sm text-white hover:bg-panel2 flex items-center gap-2.5"
                 >
-                  <Music size={16} className="text-muted" />
+                  <Music size={16} className="text-muted shrink-0" />
                   <span>Empty track (add audio later)</span>
                 </button>
                 <div className="border-t border-edge mt-1 pt-1 px-3 pb-1 text-xs text-muted">
                   Tip: drop audio anywhere on the list to add tracks fast.
                 </div>
               </div>
-            </>
+            </>,
+            document.body
           )}
         </div>
       </div>
@@ -745,16 +778,21 @@ function SortableTrackRow({
         </div>
       ) : (
         <div className="min-w-0 flex items-center gap-2">
-          <Link to={`/track/${track.id}`} className="min-w-0 flex-1">
-            <div className="text-white text-sm truncate" onDoubleClick={(e) => { e.preventDefault(); setEditing(true); }}>
-              {track.title}
-            </div>
+          <button
+            type="button"
+            onClick={onPlay}
+            onDoubleClick={(e) => { e.preventDefault(); setEditing(true); }}
+            disabled={!track.version}
+            aria-label={track.version ? `Play ${track.title}` : track.title}
+            className="min-w-0 flex-1 text-left disabled:cursor-default"
+          >
+            <div className="text-white text-sm truncate">{track.title}</div>
             <div className="text-xs text-muted truncate">
               {track.version ? track.version.label : <span className="opacity-60">No audio yet</span>}
               {track.bpm != null && <span> · {track.bpm} BPM</span>}
               {track.song_key && <span> · {track.song_key}</span>}
             </div>
-          </Link>
+          </button>
           <button
             type="button"
             onClick={() => setEditing(true)}
@@ -788,16 +826,6 @@ function SortableTrackRow({
       <span className="hidden sm:block text-right text-xs text-muted tabular-nums">
         {track.version?.duration_sec ? formatDur(track.version.duration_sec) : "—"}
       </span>
-      <button
-        onClick={onPlay}
-        disabled={!track.version}
-        className="w-8 h-8 rounded-full text-muted hover:text-white disabled:opacity-30 hover:bg-ink active:bg-ink flex items-center justify-center"
-        aria-label="Play"
-      >
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-          <path d="M2.5 1.5v9l8-4.5-8-4.5z" />
-        </svg>
-      </button>
       <button
         onClick={(e) => { e.stopPropagation(); e.preventDefault(); onOpenDetails(); }}
         className="w-8 h-8 rounded-full text-muted hover:text-white hover:bg-ink active:bg-ink flex items-center justify-center"

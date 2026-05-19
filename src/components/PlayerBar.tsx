@@ -26,6 +26,7 @@ export default function PlayerBar() {
     muted,
     setVolume,
     toggleMute,
+    setExpanded,
   } = usePlayer();
   const containerRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
@@ -332,7 +333,12 @@ export default function PlayerBar() {
 
         <div className="px-3 sm:px-5 py-2.5 sm:py-3">
           <div className="flex items-center gap-3 sm:gap-4">
-            <div className="min-w-0 flex-1 sm:flex-none sm:w-56">
+            <button
+              onClick={() => setExpanded(true)}
+              className="min-w-0 flex-1 sm:flex-none sm:w-56 text-left hover:bg-white/5 -mx-2 px-2 -my-1 py-1 rounded transition"
+              aria-label="Expand now-playing"
+              title="Tap to expand"
+            >
               <div className="text-sm font-medium text-white truncate tracking-tight">{current.title}</div>
               <div className="text-xs text-white/50 truncate">{current.albumTitle}</div>
               {loadError && (
@@ -341,7 +347,7 @@ export default function PlayerBar() {
                   <span className="truncate">{loadError}</span>
                 </div>
               )}
-            </div>
+            </button>
 
             <div className="flex items-center gap-1 sm:gap-2 shrink-0">
               <IconBtn onClick={prev} label="Previous"><SkipBack size={18} /></IconBtn>

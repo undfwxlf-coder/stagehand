@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import PlayerBar from "./PlayerBar";
+import NowPlayingOverlay from "./NowPlayingOverlay";
 import Logo from "./Logo";
 import HeaderSearch from "./HeaderSearch";
 import NotificationsBell from "./NotificationsBell";
@@ -83,6 +84,7 @@ export default function AppShell() {
         </div>
       </footer>
       <PlayerBar />
+      <NowPlayingOverlay />
       <NotificationsBootstrap />
       <NotificationToasts />
       <UploadIndicator />

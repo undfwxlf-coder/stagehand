@@ -148,6 +148,14 @@ A private workspace for music artists to track albums, store unreleased music, s
 - Playback uses the original artist's share link's signed URL; server-side withholds if revoked / expired / disabled / consumed.
 - Per-row Download where `allow_download` is true.
 
+### Artist-side Now Playing overlay
+- Tap the global `PlayerBar` track-info area (or kick off any `usePlayer.play()`) → a full-screen now-playing overlay slides in over the app. Same visual shell as the ListenPage player: small cover with ambient glow, title + artist, clean progress slider (no waveform here — `PlayerBar`'s wavesurfer keeps running underneath), big play with skip prev/next bound to the queue, Lossless / format pill.
+- Action row: **Comments** (`BottomSheet` with `CommentFeed`, owner mode — no slug, can post), **Edit** → `/edit/<trackId>`, **Details** → `/track/<trackId>`, **Queue** (when the queue has > 1 entry).
+- Chevron-down or Esc dismisses; the bar stays at the bottom so playback continues seamlessly.
+- `usePlayer` gained `expanded` + `setExpanded`; `play()` now sets `expanded: true` so kicking off a track from any artist surface (album row, track page, search, saves) takes you straight to the player.
+- `BottomSheet` was extracted to `src/components/BottomSheet.tsx` (used by both `ListenPage` and `NowPlayingOverlay`).
+- The album-share landing's separate "Play" button was removed in favor of full-row clickable track rows that route into the listener-side now-playing view.
+
 ### ListenPage — Now Playing redesign
 - Apple Music-style now-playing layout for `/listen/<slug>`. Large square artwork (max 360px) with a soft blurred halo of the same image behind it for ambient glow; bold title and artist underneath; round white play button, prev/next on album shares.
 - Progress is a thin wavesurfer waveform; the **Lossless pill** is now centered on the progress-meta row between `M:SS` elapsed and `-M:SS` remaining (Apple Music's exact placement).
