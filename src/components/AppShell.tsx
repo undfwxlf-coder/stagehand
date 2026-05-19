@@ -38,16 +38,19 @@ export default function AppShell() {
   return (
     <div className={`min-h-screen flex flex-col ${hasPlayer ? "pb-32 sm:pb-32" : ""}`}>
       <header className="border-b border-edge bg-panel/60 backdrop-blur sticky top-0 z-20">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 h-14 flex items-center gap-3 sm:gap-4 justify-between">
-          <Link to="/" aria-label="Stagehand home" className="hover:opacity-90 transition shrink-0">
-            <Logo size={24} withWordmark />
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 h-14 flex items-center gap-2 sm:gap-4 justify-between">
+          <Link to="/" aria-label="Stagehand home" className="hover:opacity-90 transition shrink-0 inline-flex items-center gap-2.5">
+            <Logo size={24} />
+            <span className="hidden sm:inline font-semibold tracking-tight text-white text-[1.05em] leading-none">
+              Stagehand
+            </span>
           </Link>
-          <nav className="flex items-center gap-1 flex-1 sm:flex-none sm:justify-center justify-end">
+          <nav className="flex items-center gap-1 flex-1 sm:flex-none sm:justify-center justify-end min-w-0">
             <NavTab to="/" end>Library</NavTab>
             <NavTab to="/saved">Saved</NavTab>
             {isAdmin && <NavTab to="/admin">Admin</NavTab>}
           </nav>
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             <HeaderSearch />
             <NotificationsBell />
             <Link
