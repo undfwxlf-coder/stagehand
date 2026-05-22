@@ -123,6 +123,13 @@ export default function ListenPage() {
   // next track to auto-play (natural-end advance, or user clicking a row while
   // already playing). Cleared after the ready handler kicks off playback.
   const wantsPlayOnReadyRef = useRef(false);
+  // Cross-instance finish dedupe. Wavesurfer can fire `finish` more than once
+  // near the end on some files / mobile Safari; the second call would advance
+  // the queue again and skip a track. Combined with a tight time-based
+  // debounce as a fallback in case the new wavesurfer instance fires a stale
+  // finish for the previous track-id right after mount.
+  const lastFinishedTrackIdRef = useRef<string | null>(null);
+  const lastFinishAtRef = useRef(0);
 
   useEffect(() => {
     if (!slug) return;
@@ -227,17 +234,30 @@ export default function ListenPage() {
       }
     });
     ws.on("pause", () => setIsPlaying(false));
-    // Per-instance guard: wavesurfer can fire `finish` more than once near
-    // the end on certain files / browsers, which would advance the queue by
-    // 2+ tracks. Each effect run gets a fresh flag so exactly one advance
-    // can happen per ws instance. Closure-captured idx is correct because
-    // the handler is freshly registered on every effect run.
+    // Per-instance guard against multi-fire `finish`. Closure-captured idx is
+    // correct because the handler is freshly registered on every effect run.
+    // Combined with the cross-instance `lastFinishedTrackIdRef` so duplicate
+    // events that survive instance destruction (or fire on a fresh instance
+    // for stale audio buffers) are also rejected.
     let advanced = false;
     ws.on("finish", () => {
       setIsPlaying(false);
       if (advanced) return;
       if (data?.type !== "album") return;
       if (activeAlbumTrackIdx >= data.tracks.length - 1) return;
+
+      const finishedTrackId = data.tracks[activeAlbumTrackIdx]?.track_id ?? null;
+      const now = Date.now();
+      if (
+        (finishedTrackId && lastFinishedTrackIdRef.current === finishedTrackId) ||
+        now - lastFinishAtRef.current < 500
+      ) {
+        console.log("[listen] finish (duplicate — ignored)");
+        return;
+      }
+      lastFinishedTrackIdRef.current = finishedTrackId;
+      lastFinishAtRef.current = now;
+
       advanced = true;
       wantsPlayOnReadyRef.current = true;
       setActiveAlbumTrackIdx(activeAlbumTrackIdx + 1);

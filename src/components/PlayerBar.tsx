@@ -33,6 +33,18 @@ export default function PlayerBar() {
   const lastVersionId = useRef<string | null>(null);
   const readyRef = useRef(false);
   const wantsPlayRef = useRef(false);
+  // Versions we've already fired `finish` → next() for. Wavesurfer can fire
+  // `finish` twice near the end on some files; the second call would read
+  // the just-updated store and advance again, skipping a track. Guard by
+  // recording the version we advanced from and short-circuiting repeats.
+  const lastFinishedVersionRef = useRef<string | null>(null);
+  const lastFinishAtRef = useRef(0);
+  // True from the moment a natural-end advance starts until the new track's
+  // wavesurfer instance fires `ready`. While true, the trailing `pause` from
+  // load() is swallowed AND we force-play on ready regardless of store state
+  // drift. Replaces an older 250ms setTimeout that lost autoplay on slow
+  // network loads.
+  const autoAdvancingRef = useRef(false);
   // Hidden <audio> we point at the next queue item so the browser pre-fetches
   // and HTTP-caches the bytes. When the current track finishes and the player
   // advances, `ws.load(nextUrl)` reads from cache instead of re-fetching → no
@@ -84,11 +96,13 @@ export default function PlayerBar() {
         } catch {
           // ignore
         }
-        // Read the freshest store state rather than the ref, since the
-        // wantsPlayRef effect may not have run yet when this fires right
-        // after an auto-advance.
-        if (shouldPlay || wantsPlayRef.current) {
-          console.log("[player] ready → auto-play");
+        // Auto-advance overrides any stale isPlaying=false that may have
+        // slipped in between `finish` and this `ready`.
+        const wasAdvancing = autoAdvancingRef.current;
+        autoAdvancingRef.current = false;
+        if (wasAdvancing || shouldPlay || wantsPlayRef.current) {
+          console.log("[player] ready → auto-play", { wasAdvancing, shouldPlay });
+          setPlaying(true);
           w.play().catch((e) => {
             console.error("[player] play() rejected", e);
             setPlaying(false);
@@ -119,22 +133,38 @@ export default function PlayerBar() {
         if (cur) recordPlay(cur.trackId);
       });
       ws.on("pause", () => {
-        if (finishingRef.current) {
-          // Swallow the trailing pause from a natural track end. The finish
-          // handler has already advanced the queue and we want playback to
-          // continue on the next track.
-          console.log("[player] pause (suppressed — natural end)");
+        if (finishingRef.current || autoAdvancingRef.current) {
+          // Swallow the trailing pause from a natural track end or from the
+          // ws.load() of an auto-advance. The next track's `ready` handler
+          // will resume playback.
+          console.log("[player] pause (suppressed — auto-advance in flight)");
           return;
         }
         console.log("[player] pause");
         setPlaying(false);
       });
       ws.on("finish", () => {
+        // Identify the track that just ended by what we last loaded into this
+        // wavesurfer — store.current may already point at the next track if
+        // React processed the prior next() before the duplicate finish fires.
+        const finishedVersion = lastVersionId.current;
+        const now = Date.now();
+        if (
+          (finishedVersion && lastFinishedVersionRef.current === finishedVersion) ||
+          now - lastFinishAtRef.current < 500
+        ) {
+          console.log("[player] finish (duplicate — ignored)");
+          return;
+        }
+        lastFinishedVersionRef.current = finishedVersion;
+        lastFinishAtRef.current = now;
         console.log("[player] finish → advancing queue");
         finishingRef.current = true;
-        // Reset after a tick — long enough to swallow the trailing pause but
-        // short enough that any legitimate user-initiated pause that follows
-        // will work normally.
+        autoAdvancingRef.current = true;
+        // Cleared in the next track's `ready` handler (autoAdvancingRef) or
+        // on user action. The 250ms timer is a fallback in case there is no
+        // next track to load (queue end) — we don't want to swallow real
+        // pauses forever.
         setTimeout(() => { finishingRef.current = false; }, 250);
         next();
       });
@@ -223,6 +253,10 @@ export default function PlayerBar() {
 
   useEffect(() => {
     wantsPlayRef.current = isPlaying;
+    // If isPlaying drops to false while an auto-advance is in flight, treat
+    // it as a user-initiated pause and cancel the pending auto-play — so
+    // the next track's ready handler doesn't force playback to resume.
+    if (!isPlaying) autoAdvancingRef.current = false;
     const ws = wsRef.current;
     if (!ws || !readyRef.current) return;
     if (isPlaying) {
