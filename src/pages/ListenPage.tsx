@@ -224,7 +224,14 @@ export default function ListenPage() {
         ws.play().catch(() => setIsPlaying(false));
       }
     });
-    ws.on("audioprocess", () => setPosition(ws.getCurrentTime()));
+    // Throttle position writes to ~10Hz (see PlayerBar for rationale).
+    let lastPosWrite = 0;
+    ws.on("audioprocess", () => {
+      const now = performance.now();
+      if (now - lastPosWrite < 100) return;
+      lastPosWrite = now;
+      setPosition(ws.getCurrentTime());
+    });
     ws.on("seeking", () => setPosition(ws.getCurrentTime()));
     ws.on("play", () => {
       setIsPlaying(true);

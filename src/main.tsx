@@ -4,7 +4,17 @@ import './index.css'
 import App from './App.tsx'
 import { initSentry, SentryErrorBoundary } from './lib/sentry'
 
-initSentry()
+// Defer Sentry init until the browser is idle. The Error Boundary itself is
+// safe to mount immediately — it works whether or not init has fired (any
+// errors thrown before init are simply not reported, which is fine for the
+// first few hundred ms).
+if (typeof window !== 'undefined') {
+  if ('requestIdleCallback' in window) {
+    (window as Window & { requestIdleCallback?: (cb: () => void) => void }).requestIdleCallback?.(initSentry)
+  } else {
+    setTimeout(initSentry, 1500)
+  }
+}
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

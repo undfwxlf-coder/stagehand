@@ -8,26 +8,24 @@ import { fmtTime } from "../lib/audio";
 import { recordPlay } from "../lib/plays";
 
 export default function PlayerBar() {
-  const {
-    current,
-    isPlaying,
-    setPlaying,
-    setPosition,
-    setDuration,
-    positionSec,
-    durationSec,
-    pendingSeek,
-    consumeSeek,
-    queue,
-    next,
-    prev,
-    toggle,
-    volume,
-    muted,
-    setVolume,
-    toggleMute,
-    setExpanded,
-  } = usePlayer();
+  // Per-field selectors so positionSec changes (60/sec during playback) only
+  // re-render the small Time/Progress subcomponents below — not the whole bar.
+  const current = usePlayer((s) => s.current);
+  const isPlaying = usePlayer((s) => s.isPlaying);
+  const setPlaying = usePlayer((s) => s.setPlaying);
+  const setPosition = usePlayer((s) => s.setPosition);
+  const setDuration = usePlayer((s) => s.setDuration);
+  const pendingSeek = usePlayer((s) => s.pendingSeek);
+  const consumeSeek = usePlayer((s) => s.consumeSeek);
+  const queue = usePlayer((s) => s.queue);
+  const next = usePlayer((s) => s.next);
+  const prev = usePlayer((s) => s.prev);
+  const toggle = usePlayer((s) => s.toggle);
+  const volume = usePlayer((s) => s.volume);
+  const muted = usePlayer((s) => s.muted);
+  const setVolume = usePlayer((s) => s.setVolume);
+  const toggleMute = usePlayer((s) => s.toggleMute);
+  const setExpanded = usePlayer((s) => s.setExpanded);
   const containerRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
   const lastVersionId = useRef<string | null>(null);
@@ -119,7 +117,14 @@ export default function PlayerBar() {
         setLoadError(formatErr(e));
         setPlaying(false);
       });
+      // Throttle position writes to ~10Hz. wavesurfer fires audioprocess at
+      // roughly 60Hz; the store update + downstream subscribers don't need
+      // sub-100ms resolution and the saved cycles add up on phones.
+      let lastPosWrite = 0;
       ws.on("audioprocess", () => {
+        const now = performance.now();
+        if (now - lastPosWrite < 100) return;
+        lastPosWrite = now;
         const w = wsRef.current;
         if (w) setPosition(w.getCurrentTime());
       });
@@ -319,21 +324,6 @@ export default function PlayerBar() {
     navigator.mediaSession.playbackState = isPlaying ? "playing" : "paused";
   }, [isPlaying]);
 
-  // Position state so iOS shows accurate scrubber + elapsed time.
-  useEffect(() => {
-    if (!("mediaSession" in navigator) || !navigator.mediaSession.setPositionState) return;
-    if (!isFinite(durationSec) || durationSec <= 0) return;
-    try {
-      navigator.mediaSession.setPositionState({
-        duration: durationSec,
-        position: Math.min(Math.max(0, positionSec), durationSec),
-        playbackRate: 1,
-      });
-    } catch {
-      // ignore
-    }
-  }, [positionSec, durationSec]);
-
   // Honor external seek requests (e.g. clicking a comment timestamp on TrackPage).
   // The nonce on pendingSeek ensures back-to-back seeks to the same second still fire.
   useEffect(() => {
@@ -358,12 +348,9 @@ export default function PlayerBar() {
       style={{ bottom: "max(0.5rem, env(safe-area-inset-bottom))" }}
     >
       <div className="max-w-5xl mx-auto pointer-events-auto glass-raised rounded-2xl sm:rounded-3xl overflow-hidden">
-        {/* Mobile-only thin progress bar at the top edge */}
-        <MobileProgressBar
-          positionSec={positionSec}
-          durationSec={durationSec}
-          onSeek={seekRatio}
-        />
+        {/* Mobile-only thin progress bar at the top edge — subscribes to
+            positionSec on its own so the outer bar doesn't re-render 60x/sec. */}
+        <MobileProgressBar onSeek={seekRatio} />
 
         <div className="px-3 sm:px-5 py-2.5 sm:py-3">
           <div className="flex items-center gap-3 sm:gap-4">
@@ -395,12 +382,8 @@ export default function PlayerBar() {
               <IconBtn onClick={next} label="Next"><SkipForward size={18} /></IconBtn>
             </div>
 
-            {/* Desktop-only waveform + timestamps */}
-            <div className="hidden sm:flex flex-1 items-center gap-3">
-              <span className="text-xs text-white/40 tabular-nums w-10 text-right">{fmtTime(positionSec)}</span>
-              <div ref={containerRef} className="flex-1 cursor-pointer" />
-              <span className="text-xs text-white/40 tabular-nums w-10">{fmtTime(durationSec)}</span>
-            </div>
+            {/* Desktop-only waveform + timestamps — isolated subscription too. */}
+            <DesktopTimeStrip containerRef={containerRef} />
 
             <VolumeControl volume={volume} muted={muted} onVolumeChange={setVolume} onToggleMute={toggleMute} />
           </div>
@@ -410,15 +393,40 @@ export default function PlayerBar() {
   );
 }
 
-function MobileProgressBar({
-  positionSec,
-  durationSec,
-  onSeek,
-}: {
-  positionSec: number;
-  durationSec: number;
-  onSeek: (ratio: number) => void;
-}) {
+function DesktopTimeStrip({ containerRef }: { containerRef: React.RefObject<HTMLDivElement | null> }) {
+  // Isolated subscription. Re-renders ~10x/sec (throttled in PlayerBar's
+  // audioprocess) but only this small subtree, not the whole bar.
+  const positionSec = usePlayer((s) => s.positionSec);
+  const durationSec = usePlayer((s) => s.durationSec);
+
+  // iOS Control Center scrubber — keep it co-located with the time display.
+  useEffect(() => {
+    if (!("mediaSession" in navigator) || !navigator.mediaSession.setPositionState) return;
+    if (!isFinite(durationSec) || durationSec <= 0) return;
+    try {
+      navigator.mediaSession.setPositionState({
+        duration: durationSec,
+        position: Math.min(Math.max(0, positionSec), durationSec),
+        playbackRate: 1,
+      });
+    } catch {
+      // ignore
+    }
+  }, [positionSec, durationSec]);
+
+  return (
+    <div className="hidden sm:flex flex-1 items-center gap-3">
+      <span className="text-xs text-white/40 tabular-nums w-10 text-right">{fmtTime(positionSec)}</span>
+      <div ref={containerRef} className="flex-1 cursor-pointer" />
+      <span className="text-xs text-white/40 tabular-nums w-10">{fmtTime(durationSec)}</span>
+    </div>
+  );
+}
+
+function MobileProgressBar({ onSeek }: { onSeek: (ratio: number) => void }) {
+  // Subscribes only to position + duration, isolated from the parent bar.
+  const positionSec = usePlayer((s) => s.positionSec);
+  const durationSec = usePlayer((s) => s.durationSec);
   const ratio = durationSec > 0 ? Math.min(1, positionSec / durationSec) : 0;
 
   const handleEvent = (clientX: number, target: HTMLDivElement) => {

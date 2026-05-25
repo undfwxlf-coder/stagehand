@@ -118,6 +118,17 @@ export default function AlbumPage() {
   useEffect(() => {
     if (!albumId) return;
     let cancel = false;
+
+    // Cache-first paint: if the library store already has this album (almost
+    // always true when navigating from /library), render it immediately. The
+    // network fetch below still runs to pick up edits made elsewhere — and
+    // tracks will fill in shortly.
+    const cached = useLibraryStore.getState().albums.find((a) => a.id === albumId);
+    if (cached) {
+      setAlbum(cached);
+      setLoading(false);
+    }
+
     (async () => {
       const [a, t] = await Promise.all([
         supabase.from("albums").select("*").eq("id", albumId).single(),

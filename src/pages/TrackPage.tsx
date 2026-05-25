@@ -5,7 +5,8 @@ import { useAuth } from "../lib/auth";
 import type { Album, Track, Version } from "../lib/database.types";
 import { downloadAudio, formatQualityLabel, getSignedAudioUrl, safeFilename } from "../lib/audio";
 import { formatErr } from "../lib/errors";
-import { detectBpm, detectKey } from "../lib/audioAnalysis";
+// audioAnalysis is code-split out of the main chunk — imported lazily inside
+// redetectFromCurrent below, which is the only callsite on this page.
 import { usePlayer } from "../lib/player";
 import { useUploadStore, isActivePhase } from "../lib/uploads";
 import { resyncSharesForTrack } from "../lib/share";
@@ -120,6 +121,7 @@ export default function TrackPage() {
       ctx.close();
 
       setRedetectStatus("Analyzing…");
+      const { detectBpm, detectKey } = await import("../lib/audioAnalysis");
       const [bpmResult, keyResult] = await Promise.allSettled([
         detectBpm(audioBuffer),
         Promise.resolve(detectKey(audioBuffer)),

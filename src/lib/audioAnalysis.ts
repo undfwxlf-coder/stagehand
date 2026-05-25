@@ -18,7 +18,10 @@ export async function decodeAudio(file: File): Promise<AudioBuffer> {
   const ctx = new Ctx();
   try {
     const buf = await file.arrayBuffer();
-    return await ctx.decodeAudioData(buf.slice(0));
+    // `decodeAudioData` detaches the input buffer. We don't reuse it, so we
+    // skip the previous defensive `buf.slice(0)` copy that doubled allocation
+    // on every upload — a 500 MB WAV is enough to OOM mobile Safari.
+    return await ctx.decodeAudioData(buf);
   } finally {
     ctx.close();
   }

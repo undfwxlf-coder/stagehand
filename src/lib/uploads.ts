@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { supabase } from "./supabase";
-import { decodeAudio, detectBpm, detectKey, peaksFromBuffer } from "./audioAnalysis";
+// audioAnalysis pulls in fft.js + web-audio-beat-detector (~150KB). Load
+// lazily on first upload instead of shipping in the main chunk.
 import { audioFormatFromFilename, inferAudioMeta, inferVersionLabel } from "./audio";
 import { formatErr } from "./errors";
 import { resyncSharesForTrack } from "./share";
@@ -124,15 +125,23 @@ export const useUploadStore = create<UploadState>((set, get) => ({
     // Kick off the work in a detached async function so the caller returns immediately.
     (async () => {
       try {
-        const audioBuffer = await decodeAudio(file);
+        const { decodeAudio, detectBpm, detectKey, peaksFromBuffer } = await import("./audioAnalysis");
+        let audioBuffer: AudioBuffer | null = await decodeAudio(file);
         const peaks = peaksFromBuffer(audioBuffer, 1024);
         const duration = audioBuffer.duration;
+        const sampleRate = audioBuffer.sampleRate;
 
         patch({ phase: "analyzing", message: PHASE_MESSAGES.analyzing, progress: 0.1 });
+        // Detection holds its own reference to the buffer while it runs. Once
+        // it settles we drop our outer reference so GC can reclaim the ~1 GB
+        // a long WAV decodes to — otherwise it sits in memory through the
+        // entire upload phase (minutes for big files).
         const detectionPromise = Promise.allSettled([
           detectBpm(audioBuffer),
           Promise.resolve(detectKey(audioBuffer)),
-        ]);
+        ]).finally(() => {
+          audioBuffer = null;
+        });
 
         patch({ phase: "uploading", message: PHASE_MESSAGES.uploading, progress: UPLOAD_START_PCT });
         const ext = (file.name.split(".").pop() || "wav").toLowerCase();
@@ -161,7 +170,7 @@ export const useUploadStore = create<UploadState>((set, get) => ({
             duration_sec: duration,
             peaks,
             format: fmt.format,
-            sample_rate: Math.round(audioBuffer.sampleRate) || null,
+            sample_rate: Math.round(sampleRate) || null,
             is_lossless: fmt.isLossless,
           })
           .select()

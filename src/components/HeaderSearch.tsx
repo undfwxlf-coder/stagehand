@@ -36,15 +36,21 @@ export default function HeaderSearch() {
 
   const trimmed = query.trim();
 
-  // Debounced search
+  // Debounced search. supabase-js doesn't accept an AbortSignal, so we use a
+  // monotonically-increasing request id and drop any response whose id isn't
+  // the current one — guarantees that out-of-order responses can't clobber
+  // newer results.
+  const reqIdRef = useRef(0);
   useEffect(() => {
     if (!trimmed) {
+      reqIdRef.current += 1; // invalidate any in-flight response
       setResults([]);
       setLoading(false);
       return;
     }
     setLoading(true);
     const handle = setTimeout(async () => {
+      const myId = ++reqIdRef.current;
       const pattern = `%${trimmed.replace(/[%_]/g, "\\$&")}%`;
       const [albumsRes, tracksRes] = await Promise.all([
         supabase
@@ -58,6 +64,7 @@ export default function HeaderSearch() {
           .ilike("title", pattern)
           .limit(8),
       ]);
+      if (myId !== reqIdRef.current) return; // a newer request has started
 
       const albums: AlbumResult[] = (albumsRes.data ?? []).map((a: any) => ({
         kind: "album",
