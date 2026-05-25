@@ -386,7 +386,10 @@ export default function ListenPage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="border-b border-edge bg-panel/60 backdrop-blur">
+      <header
+        className="border-b border-edge bg-panel/60 backdrop-blur"
+        style={{ paddingTop: "env(safe-area-inset-top)" }}
+      >
         <div className="max-w-3xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-center">
           <a href="/" aria-label="Stagehand home" className="hover:opacity-90 transition">
             <Logo size={22} withWordmark />

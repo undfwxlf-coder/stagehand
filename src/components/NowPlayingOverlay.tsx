@@ -58,7 +58,10 @@ export default function NowPlayingOverlay() {
 
   return (
     <div className="fixed inset-0 z-40 bg-ink/95 backdrop-blur-2xl overflow-y-auto">
-      <div className="min-h-screen flex flex-col px-4 sm:px-6 py-4 sm:py-6">
+      <div
+        className="min-h-screen flex flex-col px-4 sm:px-6 pb-4 sm:pb-6"
+        style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}
+      >
         <div className="flex items-center justify-between mb-2 sm:mb-4 max-w-md w-full mx-auto">
           <button
             onClick={() => setExpanded(false)}

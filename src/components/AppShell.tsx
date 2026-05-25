@@ -37,7 +37,10 @@ export default function AppShell() {
 
   return (
     <div className={`min-h-screen flex flex-col ${hasPlayer ? "pb-32 sm:pb-32" : ""}`}>
-      <header className="border-b border-edge bg-panel/60 backdrop-blur sticky top-0 z-20">
+      <header
+        className="border-b border-edge bg-panel/60 backdrop-blur sticky top-0 z-20"
+        style={{ paddingTop: "env(safe-area-inset-top)" }}
+      >
         <div className="max-w-7xl mx-auto px-3 sm:px-6 h-14 flex items-center gap-2 sm:gap-4 justify-between">
           <Link to="/" aria-label="Stagehand home" className="hover:opacity-90 transition shrink-0 inline-flex items-center gap-2.5">
             <Logo size={24} />

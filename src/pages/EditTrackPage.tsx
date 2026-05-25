@@ -174,7 +174,10 @@ export default function EditTrackPage() {
 
   return (
     <div className="fixed inset-0 bg-ink flex flex-col text-white">
-      <header className="flex items-center justify-between px-4 sm:px-6 pt-4 pb-2">
+      <header
+        className="flex items-center justify-between px-4 sm:px-6 pb-2"
+        style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}
+      >
         <button
           type="button"
           onClick={cancel}
