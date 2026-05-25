@@ -106,8 +106,13 @@ export default function LibraryPage() {
                 <Link
                   key={a.id}
                   to={`/album/${a.id}`}
-                  className="group bg-panel border border-edge rounded-xl overflow-hidden hover:border-accent/60 transition-[transform,border-color] duration-150 ease-out hover:-translate-y-0.5 active:scale-[0.97] active:duration-100"
+                  className="group bg-panel border border-edge rounded-xl overflow-hidden hover:border-accent/60 transition-[transform,border-color] duration-150 ease-out hover:-translate-y-0.5 active:scale-[0.97] active:duration-100 relative"
                 >
+                  {a.is_single && (
+                    <span className="absolute top-2 right-2 z-10 text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-black/70 text-white/95 backdrop-blur">
+                      Single
+                    </span>
+                  )}
                   <div className="aspect-square bg-gradient-to-br from-panel2 to-ink flex items-center justify-center text-edge group-hover:text-muted transition">
                     {a.artwork_url ? (
                       <img src={a.artwork_url} alt="" className="w-full h-full object-cover" />
@@ -139,9 +144,16 @@ export default function LibraryPage() {
                     to={`/album/${a.id}`}
                     className="group bg-panel border border-edge rounded-xl overflow-hidden hover:border-accent/60 transition-[transform,border-color] duration-150 ease-out hover:-translate-y-0.5 active:scale-[0.97] active:duration-100 relative"
                   >
-                    <span className="absolute top-2 right-2 z-10 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-black/70 text-white/90 backdrop-blur">
-                      Editor
-                    </span>
+                    <div className="absolute top-2 left-2 right-2 z-10 flex items-start justify-between gap-1 pointer-events-none">
+                      {a.is_single ? (
+                        <span className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-black/70 text-white/95 backdrop-blur">
+                          Single
+                        </span>
+                      ) : <span />}
+                      <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-black/70 text-white/90 backdrop-blur">
+                        Editor
+                      </span>
+                    </div>
                     <div className="aspect-square bg-gradient-to-br from-panel2 to-ink flex items-center justify-center text-edge group-hover:text-muted transition">
                       {a.artwork_url ? (
                         <img src={a.artwork_url} alt="" className="w-full h-full object-cover" />

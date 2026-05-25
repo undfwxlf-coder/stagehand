@@ -402,7 +402,7 @@ export default function AlbumPage() {
             type="button"
             onClick={() => isOwner && artFileRef.current?.click()}
             disabled={uploadingArt || !isOwner}
-            aria-label={album.artwork_url ? "Change cover" : "Upload cover"}
+            aria-label={album.artwork_url ? (album.is_single ? "Change single cover" : "Change cover") : (album.is_single ? "Upload single cover" : "Upload cover")}
             className="group relative w-40 h-40 sm:w-48 sm:h-48 rounded-2xl bg-gradient-to-br from-panel2 to-ink border border-edge hover:border-accent/60 flex items-center justify-center text-6xl text-edge overflow-hidden transition disabled:opacity-60 disabled:hover:border-edge"
           >
             {album.artwork_url ? (
@@ -410,9 +410,18 @@ export default function AlbumPage() {
             ) : (
               <Music size={48} strokeWidth={1.25} />
             )}
+            {album.is_single && (
+              <span className="absolute top-2 left-2 z-10 text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-black/70 text-white/95 backdrop-blur">
+                Single
+              </span>
+            )}
             {isOwner && (
               <span className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-sm font-medium">
-                {uploadingArt ? "Uploading…" : album.artwork_url ? "Change cover" : "Upload cover"}
+                {uploadingArt
+                  ? "Uploading…"
+                  : album.artwork_url
+                    ? (album.is_single ? "Change single cover" : "Change cover")
+                    : (album.is_single ? "Upload single cover" : "Upload cover")}
               </span>
             )}
           </button>
@@ -636,6 +645,10 @@ export default function AlbumPage() {
           onClose={() => setShowAlbumSheet(false)}
           onRequestChangeCover={() => artFileRef.current?.click()}
           onRequestRename={() => startTitleEdit()}
+          onAlbumChange={(patch) => {
+            setAlbum({ ...album, ...patch });
+            updateLibraryAlbum(album.id, patch);
+          }}
           onDeleted={() => {
             removeLibraryAlbum(album.id);
             navigate("/");
