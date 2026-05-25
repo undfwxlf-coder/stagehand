@@ -172,11 +172,13 @@ A private workspace for music artists to track albums, store unreleased music, s
 - Badge rendered on `ListenPage` (centered under title for track shares, inline next to the active album track title for album shares) and on `TrackPage` versions list (per-row).
 
 ### Singles
-- `albums.is_single` boolean flag. Toggle from `AlbumDetailsSheet` (owner-only).
-- When on:
-  - **SINGLE** pill renders on the Library card, on the AlbumPage cover, and on the "Shared with me" cards.
-  - The cover affordance relabels itself: "Change cover" → "Change single cover," "Upload cover" → "Upload single cover," and `AlbumDetailsSheet`'s Rename / Delete rows speak about "single" instead of "project."
-- Doesn't change schema relationships — singles are still album rows under the hood, just labeled. Sharing, comments, versions, and the editor all work identically.
+- A *single* is a track within an album that the artist is releasing on its own (often ahead of the full album). Lives on `tracks`, not `albums`.
+- New columns: `tracks.is_single boolean default false` and `tracks.single_cover_url text` (the per-single cover, stored in the public `artwork` bucket under `${ownerId}/track/${trackId}/single-cover-…`).
+- Toggle from the **Track details sheet** (Mark as single). When on:
+  - A "Single cover" upload row appears immediately below the toggle.
+  - The AlbumPage track row shows a small SINGLE pill next to the title.
+  - Playback surfaces (PlayerBar, NowPlayingOverlay, listener Now Playing) prefer `single_cover_url` when set, falling back to the album's `artwork_url`.
+- The earlier album-level `is_single` was a mis-scope and has been dropped.
 
 ### Collaborators (v1)
 - An invite share with the new **Allow editing** toggle on promotes every member of that share to an editor on the album it points at. No separate collaborator table — reuses `share_members` entirely.
@@ -322,7 +324,7 @@ A private workspace for music artists to track albums, store unreleased music, s
 - ⏳ `migration_track_comments.sql` — **needs to be run** for timestamped comments. Adds `track_comments` table + RLS, the three RPCs (`list_track_comments`, `post_track_comment`, `delete_track_comment`), and adds the table to the `supabase_realtime` publication. Idempotent.
 - ⏳ `migration_storage_cleanup.sql` — **needs to be run** to stop orphaning audio + artwork files on delete. Adds AFTER-DELETE triggers on `versions`, `albums`, and `profiles` that sweep the corresponding `storage.objects` rows. Idempotent.
 - ⏳ `migration_collabs_v1.sql` — **needs to be run** for the new collaborators feature. Adds `share_links.allow_editing`, the `is_album_editor` / `is_track_editor` helpers, rewrites RLS on `tracks` / `versions` / `share_links` / `albums` and the `audio` storage bucket read policy to recognize editors, and adds `list_collaborating_albums()`. Idempotent.
-- ⏳ `migration_album_is_single.sql` — **needs to be run** for the Single feature. Adds `albums.is_single` boolean. Idempotent.
+- ⏳ `migration_track_is_single.sql` — **needs to be run** for the singles feature. Adds `tracks.is_single` + `tracks.single_cover_url`, and drops the never-used `albums.is_single` column from a prior mis-scoped attempt. Idempotent.
 - ⏳ `migration_version_audio_meta.sql` — **needs to be run** for the lossless badge. Adds `format` / `sample_rate` / `is_lossless` columns to `versions` and backfills existing rows from the storage_path extension. Idempotent.
 - ⏳ `migration_resolve_share_artwork.sql` — **needs to be run** for the redesigned listener UI. Replaces `resolve_share` so its responses also carry `album_artwork_url` (track shares) and `artist_name` (both types). All other status-code behavior unchanged. Idempotent.
 

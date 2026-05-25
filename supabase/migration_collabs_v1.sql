@@ -225,7 +225,6 @@ begin
         'title', a.title,
         'artwork_url', a.artwork_url,
         'status', a.status,
-        'is_single', coalesce(a.is_single, false),
         'owner_id', a.owner_id,
         'owner_artist_name', coalesce(p.artist_name, u.raw_user_meta_data->>'artist_name'),
         'created_at', a.created_at

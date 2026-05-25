@@ -357,7 +357,11 @@ export default function AlbumPage() {
     if (!t.version || !album) return;
     const url = await getSignedAudioUrl(t.version.storage_path);
     const artistName = (user?.user_metadata?.artist_name as string | undefined) ?? null;
-    const artworkUrl = album.artwork_url ?? null;
+    const albumArtworkUrl = album.artwork_url ?? null;
+    // Singles get their own cover when one is set; otherwise fall back to the
+    // album cover.
+    const artworkFor = (tr: TrackWithVersion) =>
+      (tr.is_single && tr.single_cover_url) || albumArtworkUrl;
     setQueue(
       tracks
         .filter((tr) => tr.version)
@@ -370,7 +374,7 @@ export default function AlbumPage() {
           peaks: tr.version!.peaks,
           duration: tr.version!.duration_sec,
           artistName,
-          artworkUrl,
+          artworkUrl: artworkFor(tr),
         }))
     );
     play({
@@ -382,7 +386,7 @@ export default function AlbumPage() {
       peaks: t.version.peaks,
       duration: t.version.duration_sec,
       artistName,
-      artworkUrl,
+      artworkUrl: artworkFor(t),
     });
   };
 
@@ -402,7 +406,7 @@ export default function AlbumPage() {
             type="button"
             onClick={() => isOwner && artFileRef.current?.click()}
             disabled={uploadingArt || !isOwner}
-            aria-label={album.artwork_url ? (album.is_single ? "Change single cover" : "Change cover") : (album.is_single ? "Upload single cover" : "Upload cover")}
+            aria-label={album.artwork_url ? "Change cover" : "Upload cover"}
             className="group relative w-40 h-40 sm:w-48 sm:h-48 rounded-2xl bg-gradient-to-br from-panel2 to-ink border border-edge hover:border-accent/60 flex items-center justify-center text-6xl text-edge overflow-hidden transition disabled:opacity-60 disabled:hover:border-edge"
           >
             {album.artwork_url ? (
@@ -410,18 +414,9 @@ export default function AlbumPage() {
             ) : (
               <Music size={48} strokeWidth={1.25} />
             )}
-            {album.is_single && (
-              <span className="absolute top-2 left-2 z-10 text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-black/70 text-white/95 backdrop-blur">
-                Single
-              </span>
-            )}
             {isOwner && (
               <span className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-sm font-medium">
-                {uploadingArt
-                  ? "Uploading…"
-                  : album.artwork_url
-                    ? (album.is_single ? "Change single cover" : "Change cover")
-                    : (album.is_single ? "Upload single cover" : "Upload cover")}
+                {uploadingArt ? "Uploading…" : album.artwork_url ? "Change cover" : "Upload cover"}
               </span>
             )}
           </button>
@@ -645,10 +640,6 @@ export default function AlbumPage() {
           onClose={() => setShowAlbumSheet(false)}
           onRequestChangeCover={() => artFileRef.current?.click()}
           onRequestRename={() => startTitleEdit()}
-          onAlbumChange={(patch) => {
-            setAlbum({ ...album, ...patch });
-            updateLibraryAlbum(album.id, patch);
-          }}
           onDeleted={() => {
             removeLibraryAlbum(album.id);
             navigate("/");
@@ -826,7 +817,14 @@ function SortableTrackRow({
             aria-label={track.version ? `Play ${track.title}` : track.title}
             className="min-w-0 flex-1 text-left disabled:cursor-default"
           >
-            <div className="text-white text-sm truncate">{track.title}</div>
+            <div className="text-white text-sm truncate flex items-center gap-1.5">
+              <span className="truncate">{track.title}</span>
+              {track.is_single && (
+                <span className="text-[8px] font-semibold uppercase tracking-wider px-1 py-0.5 rounded bg-accent/20 text-accent shrink-0">
+                  Single
+                </span>
+              )}
+            </div>
             <div className="text-xs text-muted truncate">
               {track.version ? track.version.label : <span className="opacity-60">No audio yet</span>}
               {track.bpm != null && <span> · {track.bpm} BPM</span>}

@@ -115,6 +115,50 @@ export default function TrackDetailsSheet({
     }
   };
 
+  const onToggleSingle = async () => {
+    const next = !track.is_single;
+    onTrackChange({ is_single: next });
+    const { error } = await supabase
+      .from("tracks")
+      .update({ is_single: next })
+      .eq("id", track.id);
+    if (error) {
+      onTrackChange({ is_single: !next });
+      showToast(error.message);
+    } else {
+      showToast(next ? "Marked as single" : "Single tag removed");
+    }
+  };
+
+  const singleCoverInputRef = useRef<HTMLInputElement>(null);
+  const [coverBusy, setCoverBusy] = useState(false);
+  const onUploadSingleCover = async (file: File) => {
+    setCoverBusy(true);
+    try {
+      const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+      const path = `${ownerId}/track/${track.id}/single-cover-${Date.now()}.${ext}`;
+      const up = await supabase.storage.from("artwork").upload(path, file, {
+        contentType: file.type || "image/jpeg",
+        upsert: true,
+      });
+      if (up.error) throw up.error;
+      const { data } = supabase.storage.from("artwork").getPublicUrl(path);
+      const url = data.publicUrl;
+      const { error } = await supabase
+        .from("tracks")
+        .update({ single_cover_url: url })
+        .eq("id", track.id);
+      if (error) throw error;
+      onTrackChange({ single_cover_url: url });
+      showToast("Single cover updated");
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Upload failed");
+    } finally {
+      setCoverBusy(false);
+      if (singleCoverInputRef.current) singleCoverInputRef.current.value = "";
+    }
+  };
+
   const onAddToQueue = async () => {
     if (!version) return;
     setQueueBusy(true);
@@ -129,7 +173,7 @@ export default function TrackDetailsSheet({
         peaks: version.peaks,
         duration: version.duration_sec,
         artistName,
-        artworkUrl: albumArtworkUrl,
+        artworkUrl: (track.is_single && track.single_cover_url) || albumArtworkUrl,
       };
       if (currentQueue.length === 0) {
         setQueue([queueItem]);
@@ -292,6 +336,20 @@ export default function TrackDetailsSheet({
                 />
                 <ActionRow icon={<InsightsIcon />} label="Insights" onClick={() => setView("insights")} />
                 <ActionRow icon={<NotesIcon />} label="Notes" onClick={() => setView("notes")} />
+                <ToggleRow
+                  icon={<SingleIcon />}
+                  label="Mark as single"
+                  active={track.is_single}
+                  onClick={onToggleSingle}
+                />
+                {track.is_single && (
+                  <ActionRow
+                    icon={<ImageIcon />}
+                    label={coverBusy ? "Uploading…" : track.single_cover_url ? "Change single cover" : "Add single cover"}
+                    disabled={coverBusy}
+                    onClick={() => singleCoverInputRef.current?.click()}
+                  />
+                )}
                 <ActionRow
                   icon={<DownloadIcon />}
                   label={track.allow_download ? "Disable downloads" : "Allow downloads"}
@@ -316,6 +374,16 @@ export default function TrackDetailsSheet({
                   destructive
                 />
               </div>
+              <input
+                ref={singleCoverInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) onUploadSingleCover(f);
+                }}
+              />
 
               {activeLink && (
                 <div className="mx-4 mb-4">
@@ -511,5 +579,62 @@ function ExportIcon() {
       <path d="M8 10V2m0 0L5 5m3-3l3 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M2.5 10v3.5h11V10" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
     </svg>
+  );
+}
+
+function SingleIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.4" />
+      <circle cx="8" cy="8" r="1.5" fill="currentColor" />
+    </svg>
+  );
+}
+
+function ImageIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <rect x="2" y="2.5" width="12" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.4" />
+      <circle cx="5.5" cy="6" r="1" fill="currentColor" />
+      <path d="M2.5 11L6 8l3 3 2-2 2.5 2.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ToggleRow({
+  icon,
+  label,
+  active,
+  onClick,
+  disabled,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="w-full px-4 py-3.5 flex items-center gap-3 text-left text-white hover:bg-edge/40 active:bg-edge/60 disabled:opacity-40 disabled:cursor-not-allowed transition"
+    >
+      <span className="w-6 h-6 flex items-center justify-center shrink-0 text-muted">{icon}</span>
+      <span className="text-sm flex-1">{label}</span>
+      <span
+        className={`inline-flex h-5 w-9 shrink-0 rounded-full border transition relative ${
+          active ? "bg-accent border-accent" : "bg-panel border-edge"
+        }`}
+        aria-hidden
+      >
+        <span
+          className={`absolute top-0.5 h-3.5 w-3.5 rounded-full bg-white transition ${
+            active ? "right-0.5" : "left-0.5"
+          }`}
+        />
+      </span>
+    </button>
   );
 }

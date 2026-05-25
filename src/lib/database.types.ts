@@ -28,7 +28,6 @@ export interface Album {
   artwork_url: string | null;
   target_release_date: string | null;
   status: AlbumStatus;
-  is_single: boolean;
   created_at: string;
 }
 
@@ -45,6 +44,8 @@ export interface Track {
   allow_download: boolean;
   current_version_id: string | null;
   editor_settings: unknown | null;
+  is_single: boolean;
+  single_cover_url: string | null;
   created_at: string;
 }
 
@@ -112,7 +113,6 @@ export interface CollabAlbum {
   title: string;
   artwork_url: string | null;
   status: AlbumStatus;
-  is_single: boolean;
   owner_id: string;
   owner_artist_name: string | null;
   created_at: string;

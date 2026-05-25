@@ -183,7 +183,7 @@ export default function TrackPage() {
       peaks: v.peaks,
       duration: v.duration_sec,
       artistName: (user?.user_metadata?.artist_name as string | undefined) ?? null,
-      artworkUrl: album.artwork_url ?? null,
+      artworkUrl: (track.is_single && track.single_cover_url) || album.artwork_url || null,
     });
   };
 

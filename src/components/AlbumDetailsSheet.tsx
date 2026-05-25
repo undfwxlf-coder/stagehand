@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronRight, Disc3, ImagePlus, Pencil, Trash2, X } from "lucide-react";
+import { ChevronRight, ImagePlus, Pencil, Trash2, X } from "lucide-react";
 import type { Album, ShareLink } from "../lib/database.types";
 import { listAlbumShareLinks, shareUrlFor } from "../lib/share";
 import { supabase } from "../lib/supabase";
@@ -15,7 +15,6 @@ interface AlbumDetailsSheetProps {
   onRequestChangeCover: () => void;
   onRequestRename: () => void;
   onDeleted: () => void;
-  onAlbumChange?: (patch: Partial<Album>) => void;
 }
 
 export default function AlbumDetailsSheet({
@@ -27,7 +26,6 @@ export default function AlbumDetailsSheet({
   onRequestChangeCover,
   onRequestRename,
   onDeleted,
-  onAlbumChange,
 }: AlbumDetailsSheetProps) {
   const [links, setLinks] = useState<ShareLink[]>([]);
   const [shareOpen, setShareOpen] = useState(false);
@@ -79,19 +77,6 @@ export default function AlbumDetailsSheet({
   };
 
   const openManageSharing = () => setShareOpen(true);
-
-  const toggleSingle = async () => {
-    const next = !album.is_single;
-    const { error } = await supabase.from("albums").update({ is_single: next }).eq("id", album.id);
-    if (error) {
-      showToast(formatErr(error));
-      return;
-    }
-    // Local optimistic update — propagate via onAlbumChange so AlbumPage +
-    // library cache pick it up immediately.
-    onAlbumChange?.({ is_single: next });
-    showToast(next ? "Marked as single" : "Single tag removed");
-  };
 
   const deleteAlbum = async () => {
     const ok = window.confirm(
@@ -182,43 +167,17 @@ export default function AlbumDetailsSheet({
             <div className="mx-4 mb-3 rounded-xl bg-panel2 border border-edge overflow-hidden divide-y divide-edge">
               <ActionRow
                 icon={<ImagePlus size={16} />}
-                label={
-                  album.is_single
-                    ? album.artwork_url ? "Change single cover" : "Add single cover"
-                    : album.artwork_url ? "Change cover" : "Add cover"
-                }
+                label={album.artwork_url ? "Change cover" : "Add cover"}
                 onClick={() => { onClose(); onRequestChangeCover(); }}
               />
               <ActionRow
                 icon={<Pencil size={16} />}
-                label={album.is_single ? "Rename single" : "Rename project"}
+                label="Rename project"
                 onClick={() => { onClose(); onRequestRename(); }}
               />
-              <button
-                type="button"
-                onClick={toggleSingle}
-                className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-edge/50 transition text-left"
-              >
-                <span className="flex items-center gap-3 min-w-0">
-                  <Disc3 size={16} className="text-muted shrink-0" />
-                  <span className="text-sm text-white truncate">Mark as single</span>
-                </span>
-                <span
-                  className={`inline-flex h-5 w-9 shrink-0 rounded-full border transition relative ${
-                    album.is_single ? "bg-accent border-accent" : "bg-panel border-edge"
-                  }`}
-                  aria-hidden
-                >
-                  <span
-                    className={`absolute top-0.5 h-3.5 w-3.5 rounded-full bg-white transition ${
-                      album.is_single ? "right-0.5" : "left-0.5"
-                    }`}
-                  />
-                </span>
-              </button>
               <ActionRow
                 icon={<Trash2 size={16} />}
-                label={album.is_single ? "Delete single" : "Delete project"}
+                label="Delete project"
                 onClick={deleteAlbum}
                 destructive
               />
