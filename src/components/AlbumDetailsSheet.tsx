@@ -10,6 +10,7 @@ interface AlbumDetailsSheetProps {
   album: Album;
   artistName: string | null;
   trackCount: number;
+  isOwner: boolean;
   onClose: () => void;
   onRequestChangeCover: () => void;
   onRequestRename: () => void;
@@ -20,6 +21,7 @@ export default function AlbumDetailsSheet({
   album,
   artistName,
   trackCount,
+  isOwner,
   onClose,
   onRequestChangeCover,
   onRequestRename,
@@ -161,24 +163,26 @@ export default function AlbumDetailsSheet({
             )}
           </div>
 
-          <div className="mx-4 mb-3 rounded-xl bg-panel2 border border-edge overflow-hidden divide-y divide-edge">
-            <ActionRow
-              icon={<ImagePlus size={16} />}
-              label={album.artwork_url ? "Change cover" : "Add cover"}
-              onClick={() => { onClose(); onRequestChangeCover(); }}
-            />
-            <ActionRow
-              icon={<Pencil size={16} />}
-              label="Rename project"
-              onClick={() => { onClose(); onRequestRename(); }}
-            />
-            <ActionRow
-              icon={<Trash2 size={16} />}
-              label="Delete project"
-              onClick={deleteAlbum}
-              destructive
-            />
-          </div>
+          {isOwner && (
+            <div className="mx-4 mb-3 rounded-xl bg-panel2 border border-edge overflow-hidden divide-y divide-edge">
+              <ActionRow
+                icon={<ImagePlus size={16} />}
+                label={album.artwork_url ? "Change cover" : "Add cover"}
+                onClick={() => { onClose(); onRequestChangeCover(); }}
+              />
+              <ActionRow
+                icon={<Pencil size={16} />}
+                label="Rename project"
+                onClick={() => { onClose(); onRequestRename(); }}
+              />
+              <ActionRow
+                icon={<Trash2 size={16} />}
+                label="Delete project"
+                onClick={deleteAlbum}
+                destructive
+              />
+            </div>
+          )}
 
           {activeLink && (
             <div className="mx-4 mb-4">

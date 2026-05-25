@@ -216,7 +216,7 @@ export async function listShareLinks(trackId: string): Promise<ShareLink[]> {
 
 export async function updateShareLink(
   id: string,
-  patch: Partial<Pick<ShareLink, "visibility" | "require_account">>
+  patch: Partial<Pick<ShareLink, "visibility" | "require_account" | "allow_editing">>
 ): Promise<void> {
   const { error } = await supabase.from("share_links").update(patch).eq("id", id);
   if (error) throw error;

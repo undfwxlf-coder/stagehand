@@ -389,25 +389,32 @@ export default function AlbumPage() {
   if (loading) return <div className="max-w-5xl mx-auto px-6 py-8 text-muted">Loading…</div>;
   if (!album) return <div className="max-w-5xl mx-auto px-6 py-8 text-muted">Project not found.</div>;
 
+  // Owner of this album vs collaborator. Editors can change tracks/versions
+  // freely but the album row itself (title, cover, status, delete) stays
+  // owner-only — see migration_collabs_v1.sql.
+  const isOwner = Boolean(user && album.owner_id === user.id);
+
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
       <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 mb-6 sm:mb-8 items-start">
         <div className="shrink-0 mx-auto sm:mx-0">
           <button
             type="button"
-            onClick={() => artFileRef.current?.click()}
-            disabled={uploadingArt}
+            onClick={() => isOwner && artFileRef.current?.click()}
+            disabled={uploadingArt || !isOwner}
             aria-label={album.artwork_url ? "Change cover" : "Upload cover"}
-            className="group relative w-40 h-40 sm:w-48 sm:h-48 rounded-2xl bg-gradient-to-br from-panel2 to-ink border border-edge hover:border-accent/60 flex items-center justify-center text-6xl text-edge overflow-hidden transition disabled:opacity-60"
+            className="group relative w-40 h-40 sm:w-48 sm:h-48 rounded-2xl bg-gradient-to-br from-panel2 to-ink border border-edge hover:border-accent/60 flex items-center justify-center text-6xl text-edge overflow-hidden transition disabled:opacity-60 disabled:hover:border-edge"
           >
             {album.artwork_url ? (
               <img src={album.artwork_url} alt="" className="w-full h-full object-cover" />
             ) : (
               <Music size={48} strokeWidth={1.25} />
             )}
-            <span className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-sm font-medium">
-              {uploadingArt ? "Uploading…" : album.artwork_url ? "Change cover" : "Upload cover"}
-            </span>
+            {isOwner && (
+              <span className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-sm font-medium">
+                {uploadingArt ? "Uploading…" : album.artwork_url ? "Change cover" : "Upload cover"}
+              </span>
+            )}
           </button>
           <input
             ref={artFileRef}
@@ -457,14 +464,21 @@ export default function AlbumPage() {
                 <h1 className="text-2xl sm:text-3xl font-semibold text-white tracking-tight break-words min-w-0">
                   {album.title}
                 </h1>
-                <button
-                  onClick={startTitleEdit}
-                  aria-label="Rename project"
-                  title="Rename project"
-                  className="opacity-0 group-hover:opacity-100 sm:opacity-100 text-muted hover:text-white p-1 transition shrink-0"
-                >
-                  <Pencil size={14} />
-                </button>
+                {isOwner && (
+                  <button
+                    onClick={startTitleEdit}
+                    aria-label="Rename project"
+                    title="Rename project"
+                    className="opacity-0 group-hover:opacity-100 sm:opacity-100 text-muted hover:text-white p-1 transition shrink-0"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                )}
+                {!isOwner && (
+                  <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-accent/15 text-accent border border-accent/30 shrink-0">
+                    Editor
+                  </span>
+                )}
               </div>
             )}
             <div className="flex items-center gap-1.5 mt-1 shrink-0">
@@ -483,8 +497,9 @@ export default function AlbumPage() {
             {ALBUM_STATUSES.map((s) => (
               <button
                 key={s}
-                onClick={() => updateAlbumStatus(s)}
-                className={`text-xs uppercase tracking-wider px-2.5 py-1 rounded transition ${
+                onClick={() => isOwner && updateAlbumStatus(s)}
+                disabled={!isOwner}
+                className={`text-xs uppercase tracking-wider px-2.5 py-1 rounded transition disabled:cursor-default ${
                   album.status === s ? "bg-accent text-white" : "bg-panel2 text-muted hover:text-white"
                 }`}
               >
@@ -617,6 +632,7 @@ export default function AlbumPage() {
           album={album}
           artistName={(user?.user_metadata?.artist_name as string | undefined) ?? null}
           trackCount={tracks.length}
+          isOwner={isOwner}
           onClose={() => setShowAlbumSheet(false)}
           onRequestChangeCover={() => artFileRef.current?.click()}
           onRequestRename={() => startTitleEdit()}

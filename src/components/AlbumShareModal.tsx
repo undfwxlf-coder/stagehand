@@ -154,6 +154,18 @@ export default function AlbumShareModal({
     }
   };
 
+  const setAllowEditing = async (val: boolean) => {
+    if (!link) return;
+    const prev = link.allow_editing;
+    setLink({ ...link, allow_editing: val });
+    try {
+      await updateShareLink(link.id, { allow_editing: val });
+    } catch (e) {
+      setLink({ ...link, allow_editing: prev });
+      setErr(formatErr(e));
+    }
+  };
+
   const resetLink = async () => {
     if (!link) return;
     const ok = window.confirm(
@@ -303,10 +315,10 @@ export default function AlbumShareModal({
                   <div className="glass-raised rounded-2xl overflow-hidden divide-y divide-white/[0.06]">
                     <ToggleRow
                       title="Allow editing"
-                      sub="Can edit and add tracks"
-                      checked={false}
-                      onChange={() => {}}
-                      soon
+                      sub={uiViz === "invite" ? "Members can edit + add tracks" : "Invite-only shares only"}
+                      checked={Boolean(link?.allow_editing) && uiViz === "invite"}
+                      onChange={setAllowEditing}
+                      disabled={uiViz !== "invite"}
                     />
                     <ToggleRow
                       title="Allow downloads"

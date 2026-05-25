@@ -80,6 +80,8 @@ export interface ShareLink {
   consumed_at: string | null;
   // Snapshot of tracks + signed URLs at share creation time (album shares only).
   payload: unknown | null;
+  // When true, members of this invite share become editors on the album.
+  allow_editing: boolean;
 }
 
 export interface ShareInvite {
@@ -101,6 +103,16 @@ export interface Save {
   user_id: string;
   track_id: string;
   share_link_id: string | null;
+  created_at: string;
+}
+
+export interface CollabAlbum {
+  id: string;
+  title: string;
+  artwork_url: string | null;
+  status: AlbumStatus;
+  owner_id: string;
+  owner_artist_name: string | null;
   created_at: string;
 }
 

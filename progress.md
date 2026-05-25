@@ -171,6 +171,15 @@ A private workspace for music artists to track albums, store unreleased music, s
 - Album-share payloads (`AlbumShareTrackPayload`) and the resync helpers carry the new fields so listener-side badges work for both track and album shares.
 - Badge rendered on `ListenPage` (centered under title for track shares, inline next to the active album track title for album shares) and on `TrackPage` versions list (per-row).
 
+### Collaborators (v1)
+- An invite share with the new **Allow editing** toggle on promotes every member of that share to an editor on the album it points at. No separate collaborator table — reuses `share_members` entirely.
+- Editor = same edit power as the owner over `tracks`, `versions`, and `share_links`. Owner-only: editing the album row itself (title, cover, status), deleting the album, changing collaborator membership.
+- RLS updated on `tracks` / `versions` / `share_links` to use `is_album_editor(album_id)` / `is_track_editor(track_id)` helpers (SECURITY DEFINER, derived from `share_members` joined to `share_links.allow_editing`). The `audio` storage bucket read policy was widened the same way so editors can stream the owner's existing version files.
+- `albums` keeps owner-only write/delete; editors get SELECT only so the project header / track list renders.
+- New `list_collaborating_albums()` RPC powers the Library page's **"Shared with me"** section. Cards show the owner's artist name + an `EDITOR` chip.
+- AlbumPage hides owner-only affordances (Change cover, rename pencil, status pill clicks, the entire Delete/Cover/Rename group in AlbumDetailsSheet) for non-owners and shows a small **Editor** chip next to the title.
+- Share modal's previously-stubbed "Allow editing" toggle is now real (album-share only — track-share collab isn't meaningful for v1).
+
 ### Timestamped comments
 - Signed-in listeners can pin reactions (🔥 ❤️ 😍 👏 💯 🤯) or short text comments to a specific playhead position on any shared track. Composer chip shows the live `@ M:SS` mark; clicking a comment's timestamp seeks the player to that moment.
 - Visible in **both** the listener view (`/listen/<slug>`) and the artist's `TrackPage` (`/track/<id>`).
@@ -305,6 +314,7 @@ A private workspace for music artists to track albums, store unreleased music, s
 - ⏳ `migration_track_status_waiting_on_feature.sql` — **needs to be run** to allow the new `waiting_on_feature` track status. Drops and re-adds the `tracks.status` CHECK constraint with the new value included. Idempotent.
 - ⏳ `migration_track_comments.sql` — **needs to be run** for timestamped comments. Adds `track_comments` table + RLS, the three RPCs (`list_track_comments`, `post_track_comment`, `delete_track_comment`), and adds the table to the `supabase_realtime` publication. Idempotent.
 - ⏳ `migration_storage_cleanup.sql` — **needs to be run** to stop orphaning audio + artwork files on delete. Adds AFTER-DELETE triggers on `versions`, `albums`, and `profiles` that sweep the corresponding `storage.objects` rows. Idempotent.
+- ⏳ `migration_collabs_v1.sql` — **needs to be run** for the new collaborators feature. Adds `share_links.allow_editing`, the `is_album_editor` / `is_track_editor` helpers, rewrites RLS on `tracks` / `versions` / `share_links` / `albums` and the `audio` storage bucket read policy to recognize editors, and adds `list_collaborating_albums()`. Idempotent.
 - ⏳ `migration_version_audio_meta.sql` — **needs to be run** for the lossless badge. Adds `format` / `sample_rate` / `is_lossless` columns to `versions` and backfills existing rows from the storage_path extension. Idempotent.
 - ⏳ `migration_resolve_share_artwork.sql` — **needs to be run** for the redesigned listener UI. Replaces `resolve_share` so its responses also carry `album_artwork_url` (track shares) and `artist_name` (both types). All other status-code behavior unchanged. Idempotent.
 

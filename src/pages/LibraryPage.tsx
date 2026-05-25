@@ -17,6 +17,7 @@ const STATUS_COLORS: Record<AlbumStatus, string> = {
 export default function LibraryPage() {
   const { user } = useAuth();
   const albums = useLibraryStore((s) => s.albums);
+  const collabs = useLibraryStore((s) => s.collabs);
   const loaded = useLibraryStore((s) => s.loaded);
   const refreshing = useLibraryStore((s) => s.refreshing);
   const loadLibrary = useLibraryStore((s) => s.load);
@@ -95,34 +96,73 @@ export default function LibraryPage() {
 
       {loading ? (
         <SkeletonGrid />
-      ) : albums.length === 0 ? (
+      ) : albums.length === 0 && collabs.length === 0 ? (
         <EmptyState onCreate={() => setShowNew(true)} />
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-5">
-          {albums.map((a) => (
-            <Link
-              key={a.id}
-              to={`/album/${a.id}`}
-              className="group bg-panel border border-edge rounded-xl overflow-hidden hover:border-accent/60 transition-[transform,border-color] duration-150 ease-out hover:-translate-y-0.5 active:scale-[0.97] active:duration-100"
-            >
-              <div className="aspect-square bg-gradient-to-br from-panel2 to-ink flex items-center justify-center text-edge group-hover:text-muted transition">
-                {a.artwork_url ? (
-                  <img src={a.artwork_url} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <Music size={40} strokeWidth={1.2} />
-                )}
+        <>
+          {albums.length > 0 && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-5">
+              {albums.map((a) => (
+                <Link
+                  key={a.id}
+                  to={`/album/${a.id}`}
+                  className="group bg-panel border border-edge rounded-xl overflow-hidden hover:border-accent/60 transition-[transform,border-color] duration-150 ease-out hover:-translate-y-0.5 active:scale-[0.97] active:duration-100"
+                >
+                  <div className="aspect-square bg-gradient-to-br from-panel2 to-ink flex items-center justify-center text-edge group-hover:text-muted transition">
+                    {a.artwork_url ? (
+                      <img src={a.artwork_url} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <Music size={40} strokeWidth={1.2} />
+                    )}
+                  </div>
+                  <div className="p-3">
+                    <div className="text-sm text-white truncate">{a.title}</div>
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded ${STATUS_COLORS[a.status]}`}>
+                        {a.status}
+                      </span>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+
+          {collabs.length > 0 && (
+            <div className={albums.length > 0 ? "mt-10" : ""}>
+              <h2 className="text-sm sm:text-base font-medium text-white mb-3">Shared with me</h2>
+              <p className="text-xs text-muted mb-4">Projects you're a collaborator on.</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-5">
+                {collabs.map((a) => (
+                  <Link
+                    key={a.id}
+                    to={`/album/${a.id}`}
+                    className="group bg-panel border border-edge rounded-xl overflow-hidden hover:border-accent/60 transition-[transform,border-color] duration-150 ease-out hover:-translate-y-0.5 active:scale-[0.97] active:duration-100 relative"
+                  >
+                    <span className="absolute top-2 right-2 z-10 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-black/70 text-white/90 backdrop-blur">
+                      Editor
+                    </span>
+                    <div className="aspect-square bg-gradient-to-br from-panel2 to-ink flex items-center justify-center text-edge group-hover:text-muted transition">
+                      {a.artwork_url ? (
+                        <img src={a.artwork_url} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <Music size={40} strokeWidth={1.2} />
+                      )}
+                    </div>
+                    <div className="p-3">
+                      <div className="text-sm text-white truncate">{a.title}</div>
+                      <div className="mt-1.5 flex items-center gap-2 min-w-0">
+                        <span className="text-[10px] text-muted truncate">
+                          {a.owner_artist_name ?? "Unknown artist"}
+                        </span>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
               </div>
-              <div className="p-3">
-                <div className="text-sm text-white truncate">{a.title}</div>
-                <div className="mt-1.5 flex items-center gap-2">
-                  <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded ${STATUS_COLORS[a.status]}`}>
-                    {a.status}
-                  </span>
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

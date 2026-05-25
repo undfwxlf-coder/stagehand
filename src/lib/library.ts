@@ -1,9 +1,13 @@
 import { create } from "zustand";
 import { supabase } from "./supabase";
-import type { Album } from "./database.types";
+import type { Album, CollabAlbum } from "./database.types";
 
 interface LibraryState {
   albums: Album[];
+  // Albums where the caller is a collaborator (via an invite share with
+  // allow_editing). Owner-side album RLS hides these, so they live alongside
+  // the owned list rather than mixing in.
+  collabs: CollabAlbum[];
   loaded: boolean;
   refreshing: boolean;
   load: (opts?: { force?: boolean }) => Promise<void>;
@@ -15,6 +19,7 @@ interface LibraryState {
 
 export const useLibraryStore = create<LibraryState>((set, get) => ({
   albums: [],
+  collabs: [],
   loaded: false,
   refreshing: false,
 
@@ -27,12 +32,17 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     } else {
       set({ refreshing: true });
     }
-    const { data, error } = await supabase
-      .from("albums")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (!error) {
-      set({ albums: data ?? [], loaded: true, refreshing: false });
+    const [albumsRes, collabsRes] = await Promise.all([
+      supabase.from("albums").select("*").order("created_at", { ascending: false }),
+      supabase.rpc("list_collaborating_albums"),
+    ]);
+    if (!albumsRes.error) {
+      set({
+        albums: albumsRes.data ?? [],
+        collabs: (collabsRes.data as CollabAlbum[] | null) ?? [],
+        loaded: true,
+        refreshing: false,
+      });
     } else {
       set({ refreshing: false });
     }
@@ -48,5 +58,5 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   remove: (id) =>
     set((s) => ({ albums: s.albums.filter((a) => a.id !== id) })),
 
-  clear: () => set({ albums: [], loaded: false, refreshing: false }),
+  clear: () => set({ albums: [], collabs: [], loaded: false, refreshing: false }),
 }));
