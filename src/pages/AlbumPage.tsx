@@ -479,7 +479,7 @@ export default function AlbumPage() {
               </button>
             </div>
           </div>
-          <div className="mt-3 flex items-center gap-2 flex-wrap">
+          <div className="mt-3 flex items-center gap-2 overflow-x-auto sm:flex-wrap -mx-4 sm:mx-0 px-4 sm:px-0 [&>*]:shrink-0 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
             {ALBUM_STATUSES.map((s) => (
               <button
                 key={s}
