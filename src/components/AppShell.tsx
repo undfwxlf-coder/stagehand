@@ -50,7 +50,6 @@ export default function AppShell() {
           </Link>
           <nav className="flex items-center gap-1 flex-1 sm:flex-none sm:justify-center justify-end min-w-0">
             <NavTab to="/" end>Library</NavTab>
-            <NavTab to="/saved">Saved</NavTab>
             {isAdmin && <NavTab to="/admin">Admin</NavTab>}
           </nav>
           <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
