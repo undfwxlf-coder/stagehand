@@ -8,10 +8,10 @@ import HeaderSearch from "./HeaderSearch";
 import NotificationsBell from "./NotificationsBell";
 import NotificationsBootstrap from "./NotificationsBootstrap";
 import NotificationToasts from "./NotificationToasts";
-import UploadIndicator from "./UploadIndicator";
 import { usePlayer } from "../lib/player";
 import { useProfileStore } from "../lib/profile";
 import { useIsAdmin } from "../lib/admin";
+import { useUploadStore, isActivePhase } from "../lib/uploads";
 
 export default function AppShell() {
   const { user } = useAuth();
@@ -24,6 +24,20 @@ export default function AppShell() {
   useEffect(() => {
     if (user) loadProfile(user.id);
   }, [user, loadProfile]);
+
+  // Warn before unload while uploads are in flight. (Previously lived in
+  // the floating UploadIndicator chip; we deleted that, so it moved up
+  // here so it still runs globally.)
+  const uploadingActive = useUploadStore((s) => s.jobs.some((j) => isActivePhase(j.phase)));
+  useEffect(() => {
+    if (!uploadingActive) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [uploadingActive]);
 
   const avatarUrl = profile?.avatar_url ?? null;
   const initial = (
@@ -92,7 +106,6 @@ export default function AppShell() {
       <NowPlayingOverlay />
       <NotificationsBootstrap />
       <NotificationToasts />
-      <UploadIndicator />
     </div>
   );
 }

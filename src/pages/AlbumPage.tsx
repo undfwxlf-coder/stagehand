@@ -29,7 +29,7 @@ import AlbumDetailsSheet from "../components/AlbumDetailsSheet";
 import TrackDetailsSheet from "../components/TrackDetailsSheet";
 import { Check, Music, Pencil, Share2, UploadCloud, X } from "lucide-react";
 import { useLibraryStore } from "../lib/library";
-import { useUploadStore } from "../lib/uploads";
+import { useUploadStore, isActivePhase, type UploadJob } from "../lib/uploads";
 import { resyncAlbumSharesFireAndForget, resyncSharesForTrack } from "../lib/share";
 
 const ALBUM_STATUSES: AlbumStatus[] = ["writing", "recording", "mixing", "mastering", "released"];
@@ -154,6 +154,38 @@ export default function AlbumPage() {
     return () => {
       cancel = true;
     };
+  }, [albumId]);
+
+  // Upload jobs finish in the background (the store outlives navigation).
+  // When a job for this album lands in "done", merge its new version +
+  // trackPatch into the local track list so the row goes from "no audio"
+  // to playable without a page refresh.
+  const appliedJobIds = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!albumId) return;
+    const applyDoneJobs = (jobs: UploadJob[]) => {
+      for (const job of jobs) {
+        if (
+          job.phase !== "done" ||
+          job.albumId !== albumId ||
+          appliedJobIds.current.has(job.id) ||
+          !job.version
+        ) continue;
+        appliedJobIds.current.add(job.id);
+        const version = job.version;
+        const trackPatch = job.trackPatch ?? {};
+        setTracks((rows) =>
+          rows.map((r) =>
+            r.id === job.trackId ? { ...r, ...trackPatch, version } : r
+          )
+        );
+      }
+    };
+    // Catch any jobs already in "done" when this effect mounts (e.g. the
+    // user navigated away mid-upload and came back).
+    applyDoneJobs(useUploadStore.getState().jobs);
+    const unsub = useUploadStore.subscribe((state) => applyDoneJobs(state.jobs));
+    return () => { unsub(); };
   }, [albumId]);
 
   const addEmptyTrack = async () => {
@@ -702,6 +734,15 @@ function SortableTrackRow({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(track.title);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Inline upload status for this track. Active = currently uploading;
+  // error = the most recent failed upload (until dismissed). "Done" jobs
+  // are ignored — by the time they land in "done", the album-level effect
+  // has already merged the new version into `track`.
+  const uploadJob = useUploadStore((s) =>
+    s.jobs.find((j) => j.trackId === track.id && j.phase !== "done") ?? null
+  );
+  const uploadActive = uploadJob ? isActivePhase(uploadJob.phase) : false;
+  const uploadError = uploadJob?.phase === "error" ? uploadJob : null;
 
   useEffect(() => {
     if (editing) {
@@ -825,11 +866,27 @@ function SortableTrackRow({
                 </span>
               )}
             </div>
-            <div className="text-xs text-muted truncate">
-              {track.version ? track.version.label : <span className="opacity-60">No audio yet</span>}
-              {track.bpm != null && <span> · {track.bpm} BPM</span>}
-              {track.song_key && <span> · {track.song_key}</span>}
-            </div>
+            {uploadActive && uploadJob ? (
+              <div className="text-xs text-accent truncate flex items-center gap-2">
+                <span>Loading… {Math.round(uploadJob.progress * 100)}%</span>
+                <span className="flex-1 h-0.5 rounded-full bg-ink overflow-hidden max-w-[120px]">
+                  <span
+                    className="block h-full bg-accent transition-[width] duration-200 ease-out"
+                    style={{ width: `${Math.max(0, Math.min(1, uploadJob.progress)) * 100}%` }}
+                  />
+                </span>
+              </div>
+            ) : uploadError ? (
+              <div className="text-xs text-red-400 truncate">
+                Upload failed: {uploadError.error ?? "unknown error"}
+              </div>
+            ) : (
+              <div className="text-xs text-muted truncate">
+                {track.version ? track.version.label : <span className="opacity-60">No audio yet</span>}
+                {track.bpm != null && <span> · {track.bpm} BPM</span>}
+                {track.song_key && <span> · {track.song_key}</span>}
+              </div>
+            )}
           </button>
           <button
             type="button"
