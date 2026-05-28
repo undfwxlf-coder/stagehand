@@ -30,8 +30,8 @@ export async function uploadAvatar(userId: string, file: File): Promise<string> 
   if (!file.type.startsWith("image/")) {
     throw new Error("Please pick an image file (JPG, PNG, WebP).");
   }
-  if (file.size > 8 * 1024 * 1024) {
-    throw new Error("Image must be under 8 MB.");
+  if (file.size > 50 * 1024 * 1024) {
+    throw new Error("Image must be under 50 MB.");
   }
   const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
   const path = `${userId}/avatar/avatar-${Date.now()}.${ext}`;

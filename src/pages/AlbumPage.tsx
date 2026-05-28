@@ -327,8 +327,8 @@ export default function AlbumPage() {
       setArtErr("Please pick an image file (JPG, PNG, WebP).");
       return;
     }
-    if (file.size > 8 * 1024 * 1024) {
-      setArtErr("Image must be under 8 MB.");
+    if (file.size > 50 * 1024 * 1024) {
+      setArtErr("Image must be under 50 MB.");
       return;
     }
     setUploadingArt(true);
