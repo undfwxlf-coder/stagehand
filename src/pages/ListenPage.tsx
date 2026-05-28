@@ -4,8 +4,9 @@ import { formatErr } from "../lib/errors";
 import { useParams } from "react-router-dom";
 import WaveSurfer from "wavesurfer.js";
 import { supabase } from "../lib/supabase";
-import type { ShareLink, Track, Version } from "../lib/database.types";
+import type { CollabArtist, ShareLink, Track, Version } from "../lib/database.types";
 import { audioFormatFromFilename, downloadAudio, fmtTime, formatQualityLabel, safeFilename } from "../lib/audio";
+import { formatArtistCredit } from "../lib/credit";
 import { recordPlay } from "../lib/plays";
 import { isAlbumSaved, isTrackSaved, saveAlbum, saveTrack, unsaveAlbum, unsaveTrack } from "../lib/saves";
 import type { AlbumShareTrackPayload } from "../lib/share";
@@ -37,6 +38,7 @@ interface ResolvedTrackShare {
   version: Version;
   album_artwork_url: string | null;
   artist_name: string | null;
+  collab_artists: CollabArtist[];
 }
 
 interface ResolvedAlbum {
@@ -51,6 +53,7 @@ interface ResolvedAlbumShare {
   album: ResolvedAlbum;
   tracks: AlbumShareTrackPayload[];
   artist_name: string | null;
+  collab_artists: CollabArtist[];
 }
 
 type ResolvedShare = ResolvedTrackShare | ResolvedAlbumShare;
@@ -153,6 +156,7 @@ export default function ListenPage() {
           tracks?: AlbumShareTrackPayload[];
           album_artwork_url?: string | null;
           artist_name?: string | null;
+          collab_artists?: CollabArtist[] | null;
         };
         if (r.status === "ok" && r.link && r.type === "track" && r.track && r.version) {
           setData({
@@ -162,6 +166,7 @@ export default function ListenPage() {
             version: r.version,
             album_artwork_url: r.album_artwork_url ?? null,
             artist_name: r.artist_name ?? null,
+            collab_artists: r.collab_artists ?? [],
           });
         } else if (r.status === "ok" && r.link && r.type === "album" && r.album && r.tracks) {
           setData({
@@ -170,6 +175,7 @@ export default function ListenPage() {
             album: r.album,
             tracks: r.tracks,
             artist_name: r.artist_name ?? null,
+            collab_artists: r.collab_artists ?? [],
           });
         } else {
           setErr(messageFor(r.status, Boolean(user)));
@@ -419,7 +425,7 @@ export default function ListenPage() {
                   {data.track.title}
                 </h1>
                 <p className="text-base text-muted mt-0.5 truncate">
-                  {data.artist_name ?? "Stagehand"}
+                  {formatArtistCredit(data.artist_name, data.collab_artists) || "Stagehand"}
                   <span className="text-muted/70"> · {data.version.label}</span>
                 </p>
               </div>
@@ -525,7 +531,7 @@ export default function ListenPage() {
                   {activeAlbumTrack.title}
                 </h1>
                 <p className="text-base text-muted mt-0.5 truncate">
-                  {data.artist_name ?? "Stagehand"}
+                  {formatArtistCredit(data.artist_name, data.collab_artists) || "Stagehand"}
                   <span className="text-muted/70"> · {data.album.title}</span>
                 </p>
               </div>
@@ -640,7 +646,7 @@ export default function ListenPage() {
                   {data.album.title}
                 </h1>
                 <p className="text-sm text-muted mt-1">
-                  {data.artist_name ?? "Stagehand"} · {data.tracks.length} track{data.tracks.length === 1 ? "" : "s"}
+                  {formatArtistCredit(data.artist_name, data.collab_artists) || "Stagehand"} · {data.tracks.length} track{data.tracks.length === 1 ? "" : "s"}
                 </p>
                 {user && (
                   <div className="mt-4 flex items-center justify-center sm:justify-start">

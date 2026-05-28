@@ -1,13 +1,15 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ChevronDown,
   Link as LinkIcon,
+  Plus,
   RotateCcw,
   Share2,
+  Sparkles,
   X,
 } from "lucide-react";
 import { formatErr } from "../lib/errors";
-import type { Album, ShareLink, ShareVisibility } from "../lib/database.types";
+import type { Album, CollabArtist, ShareLink, ShareVisibility } from "../lib/database.types";
 import {
   type ShareMember,
   createAlbumShareLink,
@@ -17,6 +19,7 @@ import {
   shareUrlFor,
   updateShareLink,
 } from "../lib/share";
+import { setAlbumCollabArtists } from "../lib/credit";
 
 type UIVisibility = "private" | "invite" | "public" | "paid";
 
@@ -54,6 +57,19 @@ export default function AlbumShareModal({
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [memberCount, setMemberCount] = useState(0);
+  const [collabArtists, setCollabArtistsState] = useState<CollabArtist[]>(album.collab_artists ?? []);
+
+  const persistCollabArtists = useCallback(async (next: CollabArtist[]) => {
+    const prev = collabArtists;
+    setCollabArtistsState(next);
+    try {
+      const saved = await setAlbumCollabArtists(album.id, next);
+      setCollabArtistsState(saved);
+    } catch (e) {
+      setCollabArtistsState(prev);
+      setErr(formatErr(e));
+    }
+  }, [album.id, collabArtists]);
 
   useEffect(() => {
     let cancel = false;
@@ -292,9 +308,27 @@ export default function AlbumShareModal({
           {/* Segmented visibility control — replaces dropdown */}
           <SegmentedVisibility uiViz={uiViz} onChange={setVisibility} disabled={busy || loading} />
 
+          {/* Collab / featured artists — applies to the album regardless of
+              share visibility, so it sits above the invite list. */}
+          <CollabArtistsSection
+            collabArtists={collabArtists}
+            onChange={persistCollabArtists}
+            disabled={busy}
+          />
+
           {/* Invite list — inline when Invite Only is selected */}
           {uiViz === "invite" && link && (
-            <ShareMembers shareLinkId={link.id} onCountChange={setMemberCount} />
+            <ShareMembers
+              shareLinkId={link.id}
+              onCountChange={setMemberCount}
+              collabArtists={collabArtists}
+              onPromote={(m) =>
+                persistCollabArtists([
+                  ...collabArtists,
+                  { name: m.artist_name?.trim() || m.email || "Unknown", user_id: m.user_id },
+                ])
+              }
+            />
           )}
 
           {/* More options disclosure */}
@@ -475,9 +509,13 @@ function ToggleRow({
 function ShareMembers({
   shareLinkId,
   onCountChange,
+  collabArtists,
+  onPromote,
 }: {
   shareLinkId: string;
   onCountChange: (n: number) => void;
+  collabArtists: CollabArtist[];
+  onPromote: (m: ShareMember) => void;
 }) {
   const [members, setMembers] = useState<ShareMember[]>([]);
   const [loading, setLoading] = useState(true);
@@ -516,11 +554,14 @@ function ShareMembers({
       </div>
     );
   }
+  const isPromoted = (userId: string) =>
+    collabArtists.some((c) => c.user_id === userId);
   return (
     <div className="glass-raised rounded-2xl overflow-hidden divide-y divide-white/[0.06]">
       {members.map((m) => {
         const display = m.artist_name || m.email || "Anonymous";
         const initial = display.charAt(0).toUpperCase();
+        const promoted = isPromoted(m.user_id);
         return (
           <div key={m.user_id} className="px-4 py-3 flex items-center gap-3">
             {m.avatar_url ? (
@@ -531,12 +572,112 @@ function ShareMembers({
               </div>
             )}
             <div className="flex-1 min-w-0">
-              <div className="text-[14px] text-white truncate">{display}</div>
+              <div className="text-[14px] text-white truncate flex items-center gap-1.5">
+                {display}
+                {promoted && (
+                  <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-accent/20 text-accent shrink-0">
+                    Credited
+                  </span>
+                )}
+              </div>
               <div className="text-[12px] text-white/45">Joined {fmtJoinedAt(m.joined_at)}</div>
             </div>
+            {!promoted && (
+              <button
+                onClick={() => onPromote(m)}
+                className="shrink-0 text-[12px] text-white/65 hover:text-white px-2.5 py-1.5 rounded-lg border border-white/[0.08] hover:border-white/[0.2] transition flex items-center gap-1"
+                title="Credit as collab artist + grant edit access"
+              >
+                <Sparkles size={11} />
+                Credit
+              </button>
+            )}
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function CollabArtistsSection({
+  collabArtists,
+  onChange,
+  disabled,
+}: {
+  collabArtists: CollabArtist[];
+  onChange: (next: CollabArtist[]) => void;
+  disabled?: boolean;
+}) {
+  const [draft, setDraft] = useState("");
+  const submit = () => {
+    const name = draft.trim();
+    if (!name) return;
+    onChange([...collabArtists, { name }]);
+    setDraft("");
+  };
+  const removeAt = (idx: number) => {
+    onChange(collabArtists.filter((_, i) => i !== idx));
+  };
+  return (
+    <div className="glass-raised rounded-2xl overflow-hidden">
+      <div className="px-4 pt-3 pb-2 flex items-center justify-between">
+        <div>
+          <div className="text-[13px] font-semibold text-white">Collab artists</div>
+          <div className="text-[11px] text-white/45 mt-0.5">
+            Listed as <span className="text-white/65">feat.</span> credits on listener pages.
+          </div>
+        </div>
+      </div>
+      {collabArtists.length > 0 && (
+        <ul className="px-3 pb-2 flex flex-wrap gap-1.5">
+          {collabArtists.map((c, i) => (
+            <li
+              key={c.user_id ? `u:${c.user_id}` : `n:${c.name}:${i}`}
+              className={`inline-flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded-full text-[12px] ${
+                c.user_id
+                  ? "bg-accent/15 text-accent border border-accent/30"
+                  : "bg-white/[0.06] text-white/75 border border-white/[0.08]"
+              }`}
+            >
+              {c.user_id && <Sparkles size={10} className="opacity-80" />}
+              <span className="max-w-[120px] truncate">{c.name}</span>
+              <button
+                onClick={() => removeAt(i)}
+                disabled={disabled}
+                className="w-4 h-4 rounded-full hover:bg-white/10 flex items-center justify-center"
+                aria-label={`Remove ${c.name}`}
+              >
+                <X size={10} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="px-3 pb-3">
+        <form
+          onSubmit={(e) => { e.preventDefault(); submit(); }}
+          className="flex gap-2"
+        >
+          <input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="Add a featured artist by name"
+            disabled={disabled}
+            className="flex-1 min-w-0 bg-white/[0.04] border border-white/[0.08] focus:border-accent focus:outline-none rounded-lg px-3 py-2 text-[13px] text-white placeholder:text-white/35 disabled:opacity-50"
+          />
+          <button
+            type="submit"
+            disabled={disabled || draft.trim().length === 0}
+            className="shrink-0 bg-white/[0.08] hover:bg-white/[0.12] disabled:opacity-40 text-white text-[13px] font-medium px-3 rounded-lg flex items-center gap-1.5 transition"
+          >
+            <Plus size={12} />
+            Add
+          </button>
+        </form>
+        <p className="text-[11px] text-white/35 mt-2 px-0.5">
+          Stagehand users can be linked (with edit access) from the invite member list below.
+        </p>
+      </div>
     </div>
   );
 }

@@ -21,6 +21,14 @@ export interface Profile {
   created_at: string;
 }
 
+// Single "featured / collaborating" credit attached to an album or track.
+// Free-text entries carry just `name`; entries linked to a Stagehand user
+// also carry `user_id` and get editor permissions on the parent album.
+export interface CollabArtist {
+  name: string;
+  user_id?: string | null;
+}
+
 export interface Album {
   id: string;
   owner_id: string;
@@ -29,6 +37,7 @@ export interface Album {
   target_release_date: string | null;
   status: AlbumStatus;
   created_at: string;
+  collab_artists: CollabArtist[];
 }
 
 export interface Track {
@@ -46,6 +55,8 @@ export interface Track {
   editor_settings: unknown | null;
   is_single: boolean;
   single_cover_url: string | null;
+  // null = inherit from album; non-null array (even empty) overrides album.
+  collab_artists: CollabArtist[] | null;
   created_at: string;
 }
 

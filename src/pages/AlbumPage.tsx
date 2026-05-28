@@ -688,6 +688,7 @@ export default function AlbumPage() {
             version={t.version ?? null}
             albumTitle={album.title}
             albumArtworkUrl={album.artwork_url ?? null}
+            albumCollabArtists={album.collab_artists ?? []}
             artistName={(user?.user_metadata?.artist_name as string | undefined) ?? null}
             ownerId={user?.id ?? ""}
             onClose={() => setDetailsTrackId(null)}

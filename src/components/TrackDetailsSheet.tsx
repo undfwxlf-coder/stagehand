@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
-import type { Track, Version, ShareLink } from "../lib/database.types";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { CollabArtist, Track, Version, ShareLink } from "../lib/database.types";
 import { listShareLinks, shareUrlFor } from "../lib/share";
 import { supabase } from "../lib/supabase";
 import { downloadAudio, getSignedAudioUrl, safeFilename } from "../lib/audio";
+import { setTrackCollabArtists } from "../lib/credit";
 import { usePlayer } from "../lib/player";
 import ShareModal from "./ShareModal";
 import InsightsPanel from "./InsightsPanel";
@@ -14,6 +15,7 @@ interface TrackDetailsSheetProps {
   version: Version | null;
   albumTitle: string;
   albumArtworkUrl: string | null;
+  albumCollabArtists: CollabArtist[];
   artistName: string | null;
   ownerId: string;
   onClose: () => void;
@@ -27,6 +29,7 @@ export default function TrackDetailsSheet({
   version,
   albumTitle,
   albumArtworkUrl,
+  albumCollabArtists,
   artistName,
   ownerId,
   onClose,
@@ -50,6 +53,23 @@ export default function TrackDetailsSheet({
   const [notes, setNotes] = useState(track.notes ?? "");
   const [notesSaving, setNotesSaving] = useState(false);
   const [notesDirty, setNotesDirty] = useState(false);
+
+  // Per-track collab artist override. null on the row = inherit from album;
+  // a non-null array (even []) = use the track's own list.
+  const overrideOn = track.collab_artists != null;
+  const [collabErr, setCollabErr] = useState<string | null>(null);
+  const persistTrackCollab = useCallback(async (next: CollabArtist[] | null) => {
+    const prev = track.collab_artists;
+    setCollabErr(null);
+    onTrackChange({ collab_artists: next });
+    try {
+      const saved = await setTrackCollabArtists(track.id, next);
+      onTrackChange({ collab_artists: saved });
+    } catch (e) {
+      onTrackChange({ collab_artists: prev });
+      setCollabErr((e as Error)?.message ?? "Couldn't save");
+    }
+  }, [track.id, track.collab_artists, onTrackChange]);
 
   useEffect(() => { setNotes(track.notes ?? ""); setNotesDirty(false); }, [track.id, track.notes]);
 
@@ -385,6 +405,15 @@ export default function TrackDetailsSheet({
                 }}
               />
 
+              <TrackCollabSection
+                albumCollabArtists={albumCollabArtists}
+                overrideOn={overrideOn}
+                trackCollabArtists={track.collab_artists ?? null}
+                onSetOverride={(on) => persistTrackCollab(on ? (track.collab_artists ?? []) : null)}
+                onChange={persistTrackCollab}
+                error={collabErr}
+              />
+
               {activeLink && (
                 <div className="mx-4 mb-4">
                   <button
@@ -636,5 +665,112 @@ function ToggleRow({
         />
       </span>
     </button>
+  );
+}
+
+function TrackCollabSection({
+  albumCollabArtists,
+  overrideOn,
+  trackCollabArtists,
+  onSetOverride,
+  onChange,
+  error,
+}: {
+  albumCollabArtists: CollabArtist[];
+  overrideOn: boolean;
+  trackCollabArtists: CollabArtist[] | null;
+  onSetOverride: (on: boolean) => void;
+  onChange: (next: CollabArtist[]) => void;
+  error: string | null;
+}) {
+  const [draft, setDraft] = useState("");
+  const list = trackCollabArtists ?? [];
+  const inheritDisplay = albumCollabArtists
+    .map((c) => c.name)
+    .filter(Boolean)
+    .join(", ");
+  const submit = () => {
+    const name = draft.trim();
+    if (!name) return;
+    onChange([...list, { name }]);
+    setDraft("");
+  };
+  const removeAt = (idx: number) => onChange(list.filter((_, i) => i !== idx));
+  return (
+    <div className="mx-4 mb-3 rounded-xl bg-panel2 border border-edge overflow-hidden">
+      <div className="px-4 py-3 flex items-center gap-3 border-b border-edge">
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-medium text-white">Override album credits</div>
+          <div className="text-xs text-muted mt-0.5 truncate">
+            {overrideOn
+              ? "Listeners see only the credits below for this track."
+              : inheritDisplay
+                ? `Inherits: feat. ${inheritDisplay}`
+                : "Inherits from album (no extra credits)."}
+          </div>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={overrideOn}
+          onClick={() => onSetOverride(!overrideOn)}
+          className={`inline-flex h-5 w-9 shrink-0 rounded-full border transition relative ${
+            overrideOn ? "bg-accent border-accent" : "bg-panel border-edge"
+          }`}
+        >
+          <span
+            className={`absolute top-0.5 h-3.5 w-3.5 rounded-full bg-white transition ${
+              overrideOn ? "right-0.5" : "left-0.5"
+            }`}
+          />
+        </button>
+      </div>
+      {overrideOn && (
+        <div className="px-3 pt-2.5 pb-3">
+          {list.length > 0 && (
+            <ul className="flex flex-wrap gap-1.5 pb-2">
+              {list.map((c, i) => (
+                <li
+                  key={c.user_id ? `u:${c.user_id}` : `n:${c.name}:${i}`}
+                  className={`inline-flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded-full text-[12px] ${
+                    c.user_id
+                      ? "bg-accent/15 text-accent border border-accent/30"
+                      : "bg-ink text-white/75 border border-edge"
+                  }`}
+                >
+                  <span className="max-w-[120px] truncate">{c.name}</span>
+                  <button
+                    onClick={() => removeAt(i)}
+                    className="w-4 h-4 rounded-full hover:bg-white/10 flex items-center justify-center"
+                    aria-label={`Remove ${c.name}`}
+                  >
+                    <CloseIcon />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <form
+            onSubmit={(e) => { e.preventDefault(); submit(); }}
+            className="flex gap-2"
+          >
+            <input
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder="Featured artist name"
+              className="flex-1 min-w-0 bg-ink border border-edge focus:border-accent focus:outline-none rounded-lg px-3 py-2 text-[13px] text-white placeholder:text-muted"
+            />
+            <button
+              type="submit"
+              disabled={draft.trim().length === 0}
+              className="shrink-0 bg-edge hover:bg-edge/70 disabled:opacity-40 text-white text-[13px] font-medium px-3 rounded-lg"
+            >
+              Add
+            </button>
+          </form>
+          {error && <p className="text-xs text-red-400 mt-2">{error}</p>}
+        </div>
+      )}
+    </div>
   );
 }
