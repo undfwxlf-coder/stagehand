@@ -10,11 +10,11 @@ const root = resolve(__dirname, "..");
 // rasters are not constrained by the 32x32 favicon.
 const markSvg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
-  <rect x="48" y="48" width="928" height="928" rx="208" fill="#14171c"/>
-  <rect x="48" y="48" width="928" height="928" rx="208" fill="none" stroke="#262b33" stroke-width="2"/>
-  <rect x="288" y="352" width="80" height="320" rx="40" fill="#e9ecf1"/>
-  <rect x="472" y="208" width="80" height="608" rx="40" fill="#ff5e3a"/>
-  <rect x="656" y="432" width="80" height="160" rx="40" fill="#e9ecf1"/>
+  <rect x="48" y="48" width="928" height="928" rx="208" fill="#241A15"/>
+  <rect x="48" y="48" width="928" height="928" rx="208" fill="none" stroke="#3a2a22" stroke-width="2"/>
+  <rect x="288" y="352" width="80" height="320" rx="40" fill="#F0EDDF"/>
+  <rect x="472" y="208" width="80" height="608" rx="40" fill="#BB0A21"/>
+  <rect x="656" y="432" width="80" height="160" rx="40" fill="#F0EDDF"/>
 </svg>`;
 
 const outDir = resolve(root, "public");
