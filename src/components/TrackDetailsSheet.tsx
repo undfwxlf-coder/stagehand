@@ -510,9 +510,9 @@ function ActionRow({
 
 function StatusDot({ status }: { status: "public" | "invite" | "disabled" | "none" }) {
   const color =
-    status === "public" ? "bg-emerald-400" :
-    status === "invite" ? "bg-amber-400" :
-    status === "disabled" ? "bg-red-400" :
+    status === "public" ? "bg-accent" :
+    status === "invite" ? "bg-[#F0EDDF]/80" :
+    status === "disabled" ? "bg-muted" :
     "bg-muted/50";
   return <span className={`inline-block w-1.5 h-1.5 rounded-full ${color}`} />;
 }

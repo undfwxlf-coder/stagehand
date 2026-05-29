@@ -7,7 +7,6 @@ import {
   ListMusic,
   MessageSquare,
   MoreHorizontal,
-  Music,
   Pause,
   Play,
   SkipBack,
@@ -18,6 +17,7 @@ import { usePlayer } from "../lib/player";
 import { audioFormatFromFilename, fmtTime, formatQualityLabel } from "../lib/audio";
 import CommentFeed from "./CommentFeed";
 import BottomSheet from "./BottomSheet";
+import ArtBackdrop from "./ArtBackdrop";
 
 export default function NowPlayingOverlay() {
   const current = usePlayer((s) => s.current);
@@ -57,119 +57,130 @@ export default function NowPlayingOverlay() {
   const hasNext = idxInQueue >= 0 && idxInQueue < queue.length - 1;
 
   return (
-    <div className="fixed inset-0 z-40 bg-ink/95 backdrop-blur-2xl overflow-y-auto">
+    <div className="fixed inset-0 z-40 flex flex-col overflow-hidden">
+      {/* Full-bleed sharp cover fills the screen; the bottom glass card floats
+          over its lower third (the reference now-playing composition). Falls
+          back to the ambient backdrop when the track has no artwork. */}
+      {current.artworkUrl ? (
+        <>
+          <img
+            src={current.artworkUrl}
+            alt=""
+            aria-hidden
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+          <div aria-hidden className="absolute inset-0 bg-gradient-to-b from-ink/40 via-ink/20 to-ink/90" />
+        </>
+      ) : (
+        <ArtBackdrop artworkUrl={null} className="absolute inset-0" />
+      )}
+
+      {/* Top bar over the art */}
       <div
-        className="min-h-screen flex flex-col px-4 sm:px-6 pb-4 sm:pb-6"
+        className="relative flex items-center justify-between px-4 sm:px-6 pb-2"
         style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}
       >
-        <div className="flex items-center justify-between mb-2 sm:mb-4 max-w-md w-full mx-auto">
-          <button
-            onClick={() => setExpanded(false)}
-            aria-label="Collapse player"
-            className="w-10 h-10 rounded-full text-white/85 hover:text-white hover:bg-panel2 flex items-center justify-center transition"
-          >
-            <ChevronDown size={20} />
-          </button>
-          <span className="text-[10px] uppercase tracking-wider text-muted truncate max-w-[14rem]">
-            {current.albumTitle}
-          </span>
-          <button
-            onClick={() => setShowMore(true)}
-            aria-label="More"
-            className="w-10 h-10 rounded-full text-white/85 hover:text-white hover:bg-panel2 flex items-center justify-center transition"
-          >
-            <MoreHorizontal size={20} />
-          </button>
-        </div>
+        <button
+          onClick={() => setExpanded(false)}
+          aria-label="Collapse player"
+          className="w-10 h-10 rounded-full glass text-white/90 hover:text-white flex items-center justify-center transition"
+        >
+          <ChevronDown size={20} />
+        </button>
+        <span className="text-[10px] uppercase tracking-wider text-white/70 truncate max-w-[14rem]">
+          {current.albumTitle}
+        </span>
+        <button
+          onClick={() => setShowMore(true)}
+          aria-label="More"
+          className="w-10 h-10 rounded-full glass text-white/90 hover:text-white flex items-center justify-center transition"
+        >
+          <MoreHorizontal size={20} />
+        </button>
+      </div>
 
-        <div className="flex-1 flex items-center justify-center">
-          <div className="max-w-md w-full">
-            <div className="relative mx-auto aspect-square w-full max-w-[260px]">
-              {current.artworkUrl && (
-                <img
-                  src={current.artworkUrl}
-                  alt=""
-                  aria-hidden
-                  className="absolute inset-0 w-full h-full object-cover rounded-2xl blur-3xl opacity-50 scale-110 pointer-events-none"
-                />
-              )}
-              <div className="relative w-full h-full rounded-2xl overflow-hidden bg-gradient-to-br from-panel2 to-ink border border-edge shadow-2xl flex items-center justify-center text-edge">
-                {current.artworkUrl ? (
-                  <img src={current.artworkUrl} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <Music size={48} strokeWidth={1.2} />
-                )}
-              </div>
-            </div>
+      {/* Spacer pushes the control cluster to the bottom */}
+      <div className="relative flex-1 min-h-0" />
 
-            <div className="mt-7">
-              <h1 className="text-2xl sm:text-3xl font-semibold text-white tracking-tight break-words">
+      {/* Bottom cluster: frosted control card + icon-only utility row */}
+      <div
+        className="relative w-full px-3 sm:px-0 sm:max-w-md sm:mx-auto"
+        style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+      >
+        <div className="glass-strong rounded-3xl px-5 py-5 sm:px-6">
+          <div className="flex items-start gap-3">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-[24px] sm:text-[28px] leading-tight font-bold text-white tracking-tight truncate">
                 {current.title}
               </h1>
-              <p className="text-base text-muted mt-0.5 truncate">
+              <p className="text-[14px] text-white/65 mt-0.5 truncate">
                 {current.artistName ?? "Stagehand"}
-                <span className="text-muted/70"> · {current.albumTitle}</span>
+                <span className="text-white/40"> · {current.albumTitle}</span>
               </p>
             </div>
-
-            <ProgressSlider
-              position={positionSec}
-              duration={durationSec}
-              onSeek={seekTo}
-            />
-
-            <div className="grid grid-cols-3 items-center mt-2 gap-2">
-              <span className="text-xs text-muted tabular-nums">{fmtTime(positionSec)}</span>
-              <div className="flex justify-center">
+            {(fb.isLossless || fb.format) && (
+              <div className="shrink-0 mt-1.5">
                 {fb.isLossless ? (
                   <span
                     title={qualityDetail ?? "Original master quality"}
-                    className="inline-flex items-center gap-1 rounded-md bg-panel2/80 text-white/85 px-1.5 py-0.5 text-[10px] font-medium tracking-tight"
+                    className="inline-flex items-center gap-1 rounded-md bg-white/10 text-white/85 px-1.5 py-0.5 text-[10px] font-medium tracking-tight"
                   >
                     <AudioLines size={10} strokeWidth={2.2} />
                     Lossless
                   </span>
-                ) : fb.format ? (
-                  <span className="inline-flex items-center rounded-full border border-edge bg-panel2 text-muted px-1.5 py-0.5 text-[9px] uppercase tracking-wider">
+                ) : (
+                  <span className="inline-flex items-center rounded-full bg-white/10 text-white/60 px-1.5 py-0.5 text-[9px] uppercase tracking-wider">
                     {fb.format}
                   </span>
-                ) : null}
+                )}
               </div>
-              <span className="text-xs text-muted tabular-nums text-right">
-                {durationSec > 0 ? `-${fmtTime(remaining)}` : fmtTime(durationSec)}
-              </span>
-            </div>
-
-            <div className="flex items-center justify-center gap-8 mt-7">
-              <IconBtn onClick={prev} disabled={!hasPrev} label="Previous track">
-                <SkipBack size={22} fill="currentColor" />
-              </IconBtn>
-              <button
-                onClick={toggle}
-                className="w-16 h-16 rounded-full bg-white text-ink flex items-center justify-center hover:scale-105 active:scale-95 transition shadow-lg"
-                aria-label={isPlaying ? "Pause" : "Play"}
-              >
-                {isPlaying ? <Pause size={26} fill="currentColor" /> : <Play size={26} fill="currentColor" className="translate-x-[1px]" />}
-              </button>
-              <IconBtn onClick={next} disabled={!hasNext} label="Next track">
-                <SkipForward size={22} fill="currentColor" />
-              </IconBtn>
-            </div>
-
-            <div className="mt-9 grid grid-cols-4 gap-1.5 sm:gap-2">
-              <ActionBtn onClick={() => setShowComments(true)} icon={<MessageSquare size={18} />} label="Comments" />
-              <ActionBtnLink to={`/edit/${current.trackId}`} onClick={() => setExpanded(false)} icon={<SlidersHorizontal size={18} />} label="Edit" />
-              <ActionBtnLink to={`/track/${current.trackId}`} onClick={() => setExpanded(false)} icon={<Download size={18} />} label="Details" />
-              <ActionBtn
-                onClick={() => setShowQueue(true)}
-                icon={<ListMusic size={18} />}
-                label={queue.length > 1 ? `Queue · ${queue.length}` : "Queue"}
-                disabled={queue.length <= 1}
-              />
-            </div>
-
-            <div className="h-10" />
+            )}
           </div>
+
+          <ProgressSlider position={positionSec} duration={durationSec} onSeek={seekTo} />
+
+          <div className="flex items-center justify-between mt-2">
+            <span className="text-xs text-white/55 tabular-nums">{fmtTime(positionSec)}</span>
+            <span className="text-xs text-white/55 tabular-nums">
+              {durationSec > 0 ? `-${fmtTime(remaining)}` : fmtTime(durationSec)}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-center gap-10 mt-4">
+            <IconBtn onClick={prev} disabled={!hasPrev} label="Previous track">
+              <SkipBack size={24} fill="currentColor" />
+            </IconBtn>
+            <button
+              onClick={toggle}
+              className="w-[68px] h-[68px] rounded-full bg-white text-ink flex items-center justify-center hover:scale-105 active:scale-95 transition shadow-glass-lg"
+              aria-label={isPlaying ? "Pause" : "Play"}
+            >
+              {isPlaying ? <Pause size={26} fill="currentColor" /> : <Play size={26} fill="currentColor" className="translate-x-[1px]" />}
+            </button>
+            <IconBtn onClick={next} disabled={!hasNext} label="Next track">
+              <SkipForward size={24} fill="currentColor" />
+            </IconBtn>
+          </div>
+        </div>
+
+        {/* Utility icon row — sits on the art beneath the card */}
+        <div className="flex items-center justify-around px-6 pt-3.5">
+          <RowIcon onClick={() => setShowComments(true)} label="Comments">
+            <MessageSquare size={20} />
+          </RowIcon>
+          <RowIconLink to={`/edit/${current.trackId}`} onClick={() => setExpanded(false)} label="Edit">
+            <SlidersHorizontal size={20} />
+          </RowIconLink>
+          <RowIconLink to={`/track/${current.trackId}`} onClick={() => setExpanded(false)} label="Details">
+            <Download size={20} />
+          </RowIconLink>
+          <RowIcon
+            onClick={() => setShowQueue(true)}
+            label={queue.length > 1 ? `Queue · ${queue.length}` : "Queue"}
+            disabled={queue.length <= 1}
+          >
+            <ListMusic size={20} />
+          </RowIcon>
         </div>
       </div>
 
@@ -261,7 +272,7 @@ function ProgressSlider({
   return (
     <div className="mt-6 w-full">
       <div
-        className="relative h-1.5 bg-edge/60 rounded-full cursor-pointer group"
+        className="relative h-1.5 bg-white/15 rounded-full cursor-pointer group"
         onClick={(e) => {
           if (!dur) return;
           const rect = e.currentTarget.getBoundingClientRect();
@@ -274,8 +285,8 @@ function ProgressSlider({
           style={{ width: `${pct}%` }}
         />
         <div
-          className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-white shadow opacity-0 group-hover:opacity-100 transition"
-          style={{ left: `calc(${pct}% - 6px)` }}
+          className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-white shadow-glass opacity-0 group-hover:opacity-100 transition"
+          style={{ left: `calc(${pct}% - 7px)` }}
         />
       </div>
     </div>
@@ -299,20 +310,20 @@ function IconBtn({
       disabled={disabled}
       aria-label={label}
       title={label}
-      className="w-10 h-10 rounded-full text-white/85 hover:text-white hover:bg-panel2 flex items-center justify-center transition disabled:opacity-30"
+      className="w-12 h-12 rounded-full text-white/90 hover:text-white hover:bg-white/10 flex items-center justify-center transition disabled:opacity-30"
     >
       {children}
     </button>
   );
 }
 
-function ActionBtn({
-  icon,
+function RowIcon({
+  children,
   label,
   onClick,
   disabled,
 }: {
-  icon: React.ReactNode;
+  children: React.ReactNode;
   label: string;
   onClick: () => void;
   disabled?: boolean;
@@ -321,21 +332,22 @@ function ActionBtn({
     <button
       onClick={onClick}
       disabled={disabled}
-      className="flex flex-col items-center justify-center gap-1.5 py-3 px-1.5 sm:px-2 rounded-2xl bg-panel/60 border border-edge hover:border-accent/60 transition disabled:opacity-40 text-white/85 min-w-0"
+      aria-label={label}
+      title={label}
+      className="w-11 h-11 rounded-full flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 active:bg-white/15 transition disabled:opacity-30"
     >
-      <span className="shrink-0">{icon}</span>
-      <span className="text-[10px] sm:text-[11px] tracking-wide truncate max-w-full">{label}</span>
+      {children}
     </button>
   );
 }
 
-function ActionBtnLink({
-  icon,
+function RowIconLink({
+  children,
   label,
   to,
   onClick,
 }: {
-  icon: React.ReactNode;
+  children: React.ReactNode;
   label: string;
   to: string;
   onClick?: () => void;
@@ -344,10 +356,11 @@ function ActionBtnLink({
     <Link
       to={to}
       onClick={onClick}
-      className="flex flex-col items-center justify-center gap-1.5 py-3 px-1.5 sm:px-2 rounded-2xl bg-panel/60 border border-edge hover:border-accent/60 transition text-white/85 min-w-0"
+      aria-label={label}
+      title={label}
+      className="w-11 h-11 rounded-full flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 active:bg-white/15 transition"
     >
-      <span className="shrink-0">{icon}</span>
-      <span className="text-[10px] sm:text-[11px] tracking-wide truncate max-w-full">{label}</span>
+      {children}
     </Link>
   );
 }

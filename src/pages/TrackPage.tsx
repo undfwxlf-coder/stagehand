@@ -241,7 +241,7 @@ export default function TrackPage() {
           {redetecting ? (redetectStatus ?? "Detecting…") : "Re-detect"}
         </button>
         {redetectErr && <span className="text-xs text-red-400">{redetectErr}</span>}
-        {!redetecting && redetectStatus === "Done." && <span className="text-xs text-emerald-400">Updated</span>}
+        {!redetecting && redetectStatus === "Done." && <span className="text-xs text-[#F0EDDF]/90">Updated</span>}
       </div>
 
       <section className="bg-panel border border-edge rounded-2xl p-4 sm:p-5 mb-6">
@@ -297,9 +297,9 @@ export default function TrackPage() {
                     {v.is_lossless ? (
                       <span
                         title={formatQualityLabel(v.format, v.sample_rate) ?? "Original master quality"}
-                        className="shrink-0 inline-flex items-center gap-1 rounded-full border border-emerald-400/40 bg-emerald-500/10 text-emerald-300 px-1.5 py-0 text-[9px] uppercase tracking-wider"
+                        className="shrink-0 inline-flex items-center gap-1 rounded-full border border-[#F0EDDF]/25 bg-[#F0EDDF]/10 text-[#F0EDDF]/85 px-1.5 py-0 text-[9px] uppercase tracking-wider"
                       >
-                        <span className="w-1 h-1 rounded-full bg-emerald-300" />
+                        <span className="w-1 h-1 rounded-full bg-[#F0EDDF]/70" />
                         Lossless
                       </span>
                     ) : v.format ? (

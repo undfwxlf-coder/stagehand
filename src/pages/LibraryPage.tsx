@@ -17,13 +17,20 @@ import { formatErr } from "../lib/errors";
 import type { Album, AlbumStatus } from "../lib/database.types";
 import { Download, Music, Play, X } from "lucide-react";
 
+// On-palette status ramp: cool ash → warm bark → crimson as a project nears
+// completion (uses all four palette colors).
 const STATUS_COLORS: Record<AlbumStatus, string> = {
-  writing: "bg-slate-500/20 text-slate-300",
-  recording: "bg-blue-500/20 text-blue-300",
-  mixing: "bg-purple-500/20 text-purple-300",
-  mastering: "bg-amber-500/20 text-amber-300",
-  released: "bg-emerald-500/20 text-emerald-300",
+  writing: "bg-ash/30 text-[#F0EDDF]/60",
+  recording: "bg-ash/55 text-[#F0EDDF]/85",
+  mixing: "bg-bark/70 text-[#F0EDDF]/90",
+  mastering: "bg-bark text-[#F4C9CE]",
+  released: "bg-accent/30 text-[#F4C9CE]",
 };
+
+// Shared glass card shell for every album tile (owned / collab / saved) so
+// the grid reads as one consistent surface.
+const CARD =
+  "group glass rounded-2xl overflow-hidden shadow-glass hover:border-accent/50 transition-[transform,border-color] duration-150 ease-out hover:-translate-y-0.5 active:scale-[0.97] active:duration-100";
 
 export default function LibraryPage() {
   const { user } = useAuth();
@@ -241,9 +248,9 @@ export default function LibraryPage() {
                 <Link
                   key={a.id}
                   to={`/album/${a.id}`}
-                  className="group bg-panel border border-edge rounded-xl overflow-hidden hover:border-accent/60 transition-[transform,border-color] duration-150 ease-out hover:-translate-y-0.5 active:scale-[0.97] active:duration-100"
+                  className={CARD}
                 >
-                  <div className="aspect-square bg-gradient-to-br from-panel2 to-ink flex items-center justify-center text-edge group-hover:text-muted transition">
+                  <div className="aspect-square bg-gradient-to-br from-white/[0.06] to-white/[0.01] flex items-center justify-center text-white/25 group-hover:text-white/40 transition">
                     {a.artwork_url ? (
                       <img src={a.artwork_url} alt="" className="w-full h-full object-cover" />
                     ) : (
@@ -272,12 +279,12 @@ export default function LibraryPage() {
                   <Link
                     key={a.id}
                     to={`/album/${a.id}`}
-                    className="group bg-panel border border-edge rounded-xl overflow-hidden hover:border-accent/60 transition-[transform,border-color] duration-150 ease-out hover:-translate-y-0.5 active:scale-[0.97] active:duration-100 relative"
+                    className={`${CARD} relative`}
                   >
                     <span className="absolute top-2 right-2 z-10 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-black/70 text-white/90 backdrop-blur">
                       Editor
                     </span>
-                    <div className="aspect-square bg-gradient-to-br from-panel2 to-ink flex items-center justify-center text-edge group-hover:text-muted transition">
+                    <div className="aspect-square bg-gradient-to-br from-white/[0.06] to-white/[0.01] flex items-center justify-center text-white/25 group-hover:text-white/40 transition">
                       {a.artwork_url ? (
                         <img src={a.artwork_url} alt="" className="w-full h-full object-cover" />
                       ) : (
@@ -319,8 +326,8 @@ export default function LibraryPage() {
             <div className={albums.length > 0 || collabs.length > 0 || savedAlbums.length > 0 ? "mt-10" : ""}>
               <h2 className="text-sm sm:text-base font-medium text-white mb-3">Saved tracks</h2>
               <p className="text-xs text-muted mb-4">Individual tracks shared with you that you've saved.</p>
-              <div className="bg-panel border border-edge rounded-2xl overflow-hidden">
-                <ul className="divide-y divide-edge">
+              <div className="glass rounded-2xl overflow-hidden">
+                <ul className="divide-y divide-white/[0.06]">
                   {savedTracks.map((r) => (
                     <SavedTrackRow
                       key={r.save_id}
@@ -378,7 +385,7 @@ function SavedTrackRow({
           {item.track_bpm != null && <span> · {item.track_bpm} BPM</span>}
           {item.track_song_key && <span> · {item.track_song_key}</span>}
         </div>
-        {reason && <div className="text-xs text-amber-400/80 mt-0.5">{reason}</div>}
+        {reason && <div className="text-xs text-[#E0A6AB]/90 mt-0.5">{reason}</div>}
       </div>
       {accessible ? (
         <button onClick={onPlay} className="w-9 h-9 rounded-full bg-panel2 hover:bg-accent text-white flex items-center justify-center shrink-0" aria-label="Play">
@@ -412,8 +419,8 @@ function SavedAlbumCard({ item, onPlay, onRemove }: { item: SavedAlbumItem; onPl
   const accessible = Boolean(item.share_payload && item.share_payload.length > 0);
   const reason = !accessible ? statusReason(item) ?? "No longer available" : null;
   return (
-    <div className="group bg-panel border border-edge rounded-xl overflow-hidden hover:border-accent/60 transition flex flex-col">
-      <div className="relative aspect-square bg-gradient-to-br from-panel2 to-ink flex items-center justify-center text-edge">
+    <div className={`${CARD} flex flex-col`}>
+      <div className="relative aspect-square bg-gradient-to-br from-white/[0.06] to-white/[0.01] flex items-center justify-center text-white/25">
         {item.album_artwork_url ? (
           <img src={item.album_artwork_url} alt="" className="w-full h-full object-cover" />
         ) : (
@@ -436,7 +443,7 @@ function SavedAlbumCard({ item, onPlay, onRemove }: { item: SavedAlbumItem; onPl
           {trackCount > 0 && <span> · {trackCount} tracks</span>}
         </div>
         {reason ? (
-          <div className="text-xs text-amber-400/80 mt-1.5 truncate">{reason}</div>
+          <div className="text-xs text-[#E0A6AB]/90 mt-1.5 truncate">{reason}</div>
         ) : (
           <div className="mt-1.5 flex items-center gap-2 text-xs">
             {item.share_slug && (
@@ -463,11 +470,11 @@ function SkeletonGrid() {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-5">
       {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className="bg-panel border border-edge rounded-xl overflow-hidden animate-pulse">
-          <div className="aspect-square bg-panel2" />
+        <div key={i} className="glass rounded-2xl overflow-hidden animate-pulse">
+          <div className="aspect-square bg-white/[0.04]" />
           <div className="p-3 space-y-2">
-            <div className="h-3 bg-panel2 rounded w-3/4" />
-            <div className="h-2 bg-panel2 rounded w-1/3" />
+            <div className="h-3 bg-white/[0.06] rounded w-3/4" />
+            <div className="h-2 bg-white/[0.06] rounded w-1/3" />
           </div>
         </div>
       ))}
@@ -477,7 +484,7 @@ function SkeletonGrid() {
 
 function EmptyState({ onCreate }: { onCreate: () => void }) {
   return (
-    <div className="bg-panel border border-dashed border-edge rounded-2xl py-20 text-center">
+    <div className="glass rounded-2xl py-20 text-center">
       <Music size={48} strokeWidth={1.2} className="mx-auto mb-3 text-muted" />
       <h2 className="text-lg text-white">No albums yet</h2>
       <p className="text-sm text-muted mt-1 mb-5">Start a new project to track your songs and stash demos.</p>

@@ -135,7 +135,7 @@ export default function AuthPage() {
           )}
 
           {err && <p className="text-sm text-red-400">{err}</p>}
-          {info && <p className="text-sm text-emerald-400">{info}</p>}
+          {info && <p className="text-sm text-[#F0EDDF]/90">{info}</p>}
 
           {mode === "signup" && (
             <p className="text-xs text-muted leading-relaxed">

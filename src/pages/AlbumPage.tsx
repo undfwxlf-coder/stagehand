@@ -27,7 +27,7 @@ import { usePlayer } from "../lib/player";
 import { getSignedAudioUrl, inferTrackTitle, isAudioFile } from "../lib/audio";
 import AlbumDetailsSheet from "../components/AlbumDetailsSheet";
 import TrackDetailsSheet from "../components/TrackDetailsSheet";
-import { Check, Music, Pencil, Share2, UploadCloud, X } from "lucide-react";
+import { Check, Music, Pencil, Play, Share2, UploadCloud, X } from "lucide-react";
 import { useLibraryStore } from "../lib/library";
 import { useUploadStore, isActivePhase, type UploadJob } from "../lib/uploads";
 import { resyncAlbumSharesFireAndForget, resyncSharesForTrack } from "../lib/share";
@@ -35,14 +35,16 @@ import { resyncAlbumSharesFireAndForget, resyncSharesForTrack } from "../lib/sha
 const ALBUM_STATUSES: AlbumStatus[] = ["writing", "recording", "mixing", "mastering", "released"];
 const TRACK_STATUSES: TrackStatus[] = ["idea", "demo", "tracking", "waiting_on_feature", "mixing", "mastering", "released"];
 
+// On-palette ramp (see LibraryPage): ash → bark → crimson. waiting_on_feature
+// is a "blocked" state, so it gets a distinct crimson tint to draw the eye.
 const TRACK_STATUS_COLORS: Record<TrackStatus, string> = {
-  idea: "bg-slate-500/20 text-slate-300",
-  demo: "bg-blue-500/20 text-blue-300",
-  tracking: "bg-cyan-500/20 text-cyan-300",
-  waiting_on_feature: "bg-pink-500/20 text-pink-300",
-  mixing: "bg-purple-500/20 text-purple-300",
-  mastering: "bg-amber-500/20 text-amber-300",
-  released: "bg-emerald-500/20 text-emerald-300",
+  idea: "bg-ash/25 text-[#F0EDDF]/55",
+  demo: "bg-ash/45 text-[#F0EDDF]/78",
+  tracking: "bg-ash/60 text-[#F0EDDF]/88",
+  waiting_on_feature: "bg-accent/15 text-[#E0A6AB]",
+  mixing: "bg-bark/70 text-[#F0EDDF]/90",
+  mastering: "bg-bark text-[#F4C9CE]",
+  released: "bg-accent/30 text-[#F4C9CE]",
 };
 
 const TRACK_STATUS_LABELS: Record<TrackStatus, string> = {
@@ -422,6 +424,11 @@ export default function AlbumPage() {
     });
   };
 
+  // Play the album top-to-bottom: playTrack already queues every track with a
+  // version, so kicking off the first playable track plays the whole thing.
+  const firstPlayable = tracks.find((t) => t.version);
+  const playAll = () => { if (firstPlayable) playTrack(firstPlayable); };
+
   if (loading) return <div className="max-w-5xl mx-auto px-6 py-8 text-muted">Loading…</div>;
   if (!album) return <div className="max-w-5xl mx-auto px-6 py-8 text-muted">Project not found.</div>;
 
@@ -439,7 +446,7 @@ export default function AlbumPage() {
             onClick={() => isOwner && artFileRef.current?.click()}
             disabled={uploadingArt || !isOwner}
             aria-label={album.artwork_url ? "Change cover" : "Upload cover"}
-            className="group relative w-40 h-40 sm:w-48 sm:h-48 rounded-2xl bg-gradient-to-br from-panel2 to-ink border border-edge hover:border-accent/60 flex items-center justify-center text-6xl text-edge overflow-hidden transition disabled:opacity-60 disabled:hover:border-edge"
+            className="group relative w-40 h-40 sm:w-48 sm:h-48 rounded-3xl glass shadow-glass hover:border-accent/50 flex items-center justify-center text-6xl text-white/25 overflow-hidden transition disabled:opacity-60"
           >
             {album.artwork_url ? (
               <img src={album.artwork_url} alt="" className="w-full h-full object-cover" />
@@ -517,15 +524,24 @@ export default function AlbumPage() {
                 )}
               </div>
             )}
-            <div className="flex items-center gap-1.5 mt-1 shrink-0">
+            <div className="flex items-center gap-2 mt-1 shrink-0">
               <button
                 onClick={() => setShowAlbumSheet(true)}
-                className="bg-panel2 hover:bg-edge text-white text-sm font-medium px-3 sm:px-4 py-2 rounded-lg border border-edge flex items-center gap-1.5"
+                className="bg-bark hover:bg-bark/80 border border-[#F0EDDF]/10 text-[#F0EDDF] text-sm font-medium px-3 sm:px-4 py-2 rounded-full flex items-center gap-1.5 transition"
                 aria-label="Share project"
               >
                 <Share2 size={14} />
                 <span className="hidden sm:inline">Share project</span>
                 <span className="sm:hidden">Share</span>
+              </button>
+              <button
+                onClick={playAll}
+                disabled={!firstPlayable}
+                className="w-12 h-12 rounded-full bg-accent text-white flex items-center justify-center shadow-glow hover:scale-105 active:scale-95 transition disabled:opacity-40 disabled:hover:scale-100 shrink-0"
+                aria-label="Play all"
+                title="Play album"
+              >
+                <Play size={20} fill="currentColor" className="translate-x-[1px]" />
               </button>
             </div>
           </div>
@@ -547,8 +563,8 @@ export default function AlbumPage() {
       </div>
 
       <div
-        className={`bg-panel border rounded-2xl overflow-hidden relative transition-colors ${
-          dropActive && !dropTargetTrackId ? "border-accent ring-2 ring-accent/30" : "border-edge"
+        className={`glass rounded-2xl overflow-hidden relative transition-colors ${
+          dropActive && !dropTargetTrackId ? "border-accent ring-2 ring-accent/30" : ""
         }`}
         onDragEnter={onAlbumDragEnter}
         onDragOver={onAlbumDragOver}
@@ -563,7 +579,7 @@ export default function AlbumPage() {
             </div>
           </div>
         )}
-        <div className={`px-3 sm:px-5 py-3 border-b border-edge text-xs uppercase tracking-wider text-muted grid ${ROW_GRID} gap-2 sm:gap-3 items-center`}>
+        <div className={`px-3 sm:px-5 py-3 border-b border-white/[0.06] text-xs uppercase tracking-wider text-muted grid ${ROW_GRID} gap-2 sm:gap-3 items-center`}>
           <span className="hidden sm:block"></span>
           <span className="hidden sm:block">#</span>
           <span>Title</span>
@@ -806,8 +822,8 @@ function SortableTrackRow({
         });
         if (audio) onRowDrop(audio);
       }}
-      className={`px-3 sm:px-5 py-3 border-b border-edge last:border-b-0 grid ${ROW_GRID} gap-2 sm:gap-3 items-center group transition-colors ${
-        isDragging ? "bg-panel2 shadow-lg" : isDropTarget ? "bg-accent/15 ring-1 ring-accent/40" : "hover:bg-panel2/50"
+      className={`px-3 sm:px-5 py-3 border-b border-white/[0.06] last:border-b-0 grid ${ROW_GRID} gap-2 sm:gap-3 items-center group transition-colors ${
+        isDragging ? "bg-white/[0.08] shadow-lg" : isDropTarget ? "bg-accent/15 ring-1 ring-accent/40" : "hover:bg-white/[0.04]"
       }`}
     >
       <button
@@ -859,7 +875,7 @@ function SortableTrackRow({
             aria-label={track.version ? `Play ${track.title}` : track.title}
             className="min-w-0 flex-1 text-left disabled:cursor-default"
           >
-            <div className="text-white text-sm truncate flex items-center gap-1.5">
+            <div className="text-white text-sm font-medium truncate flex items-center gap-1.5">
               <span className="truncate">{track.title}</span>
               {track.is_single && (
                 <span className="text-[8px] font-semibold uppercase tracking-wider px-1 py-0.5 rounded bg-accent/20 text-accent shrink-0">

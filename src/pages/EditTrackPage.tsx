@@ -348,7 +348,7 @@ function Waveform({ peaks, percent }: { peaks: number[] | null; percent: number 
         ))}
       </div>
       <div
-        className="absolute top-0 bottom-0 w-[2px] bg-accent shadow-[0_0_8px_rgba(255,107,61,0.6)]"
+        className="absolute top-0 bottom-0 w-[2px] bg-accent shadow-[0_0_8px_rgba(187,10,33,0.6)]"
         style={{ left: `${percent}%` }}
       />
     </div>

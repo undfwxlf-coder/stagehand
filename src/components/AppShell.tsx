@@ -8,6 +8,7 @@ import HeaderSearch from "./HeaderSearch";
 import NotificationsBell from "./NotificationsBell";
 import NotificationsBootstrap from "./NotificationsBootstrap";
 import NotificationToasts from "./NotificationToasts";
+import BottomTabBar from "./BottomTabBar";
 import { usePlayer } from "../lib/player";
 import { useProfileStore } from "../lib/profile";
 import { useIsAdmin } from "../lib/admin";
@@ -50,7 +51,7 @@ export default function AppShell() {
     .toUpperCase();
 
   return (
-    <div className={`min-h-screen flex flex-col ${hasPlayer ? "pb-32 sm:pb-32" : ""}`}>
+    <div className={`min-h-screen flex flex-col ${hasPlayer ? "pb-44 sm:pb-32" : "pb-24 sm:pb-0"}`}>
       <header
         className="border-b border-edge bg-panel/60 backdrop-blur sticky top-0 z-20"
         style={{ paddingTop: "env(safe-area-inset-top)" }}
@@ -62,18 +63,18 @@ export default function AppShell() {
               Stagehand
             </span>
           </Link>
-          <nav className="flex items-center gap-1 flex-1 sm:flex-none sm:justify-center justify-end min-w-0">
+          <nav className="hidden sm:flex items-center gap-1 sm:flex-none sm:justify-center min-w-0">
             <NavTab to="/" end>Library</NavTab>
             {isAdmin && <NavTab to="/admin">Admin</NavTab>}
           </nav>
-          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0 ml-auto sm:ml-0">
             <HeaderSearch />
             <NotificationsBell />
             <Link
               to="/profile"
               aria-label="Your profile"
               title="Your profile"
-              className="w-8 h-8 rounded-full overflow-hidden bg-panel2 border border-edge hover:border-muted/60 transition flex items-center justify-center"
+              className="hidden sm:flex w-8 h-8 rounded-full overflow-hidden bg-panel2 border border-edge hover:border-muted/60 transition items-center justify-center"
             >
               {avatarUrl ? (
                 <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
@@ -103,6 +104,7 @@ export default function AppShell() {
         </div>
       </footer>
       <PlayerBar />
+      <BottomTabBar />
       <NowPlayingOverlay />
       <NotificationsBootstrap />
       <NotificationToasts />

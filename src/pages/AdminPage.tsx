@@ -265,7 +265,7 @@ function Pill({
   const cls =
     tone === "muted"
       ? "bg-edge text-muted"
-      : "bg-emerald-500/15 text-emerald-300";
+      : "bg-accent/15 text-[#EBA7AE]";
   return (
     <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded ${cls}`}>
       {children}

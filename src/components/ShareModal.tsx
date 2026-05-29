@@ -261,7 +261,7 @@ export default function ShareModal({
           className="pointer-events-none absolute inset-x-0 top-0 h-64"
           style={{
             background:
-              "radial-gradient(80% 100% at 50% 0%, rgba(255,107,61,0.22) 0%, rgba(255,107,61,0.06) 35%, rgba(255,107,61,0) 70%)",
+              "radial-gradient(80% 100% at 50% 0%, rgba(187,10,33,0.24) 0%, rgba(187,10,33,0.07) 35%, rgba(187,10,33,0) 70%)",
           }}
         />
 
@@ -284,7 +284,7 @@ export default function ShareModal({
                 className="absolute inset-0 blur-2xl opacity-60 -z-10"
                 style={{
                   background:
-                    "radial-gradient(closest-side, rgba(255,107,61,0.4), transparent)",
+                    "radial-gradient(closest-side, rgba(187,10,33,0.42), transparent)",
                 }}
               />
               <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden bg-gradient-to-br from-white/10 to-white/[0.02] border border-white/10 shadow-glass-lg flex items-center justify-center">

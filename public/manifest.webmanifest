@@ -4,8 +4,8 @@
   "description": "A private workspace for music artists to track albums, store unreleased music, and listen anywhere.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0b0d10",
-  "theme_color": "#0b0d10",
+  "background_color": "#17110E",
+  "theme_color": "#17110E",
   "icons": [
     { "src": "/logo-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "/logo-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },

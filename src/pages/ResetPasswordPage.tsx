@@ -88,7 +88,7 @@ export default function ResetPasswordPage() {
 
         {done ? (
           <div className="bg-panel border border-edge rounded-2xl p-6 text-center space-y-2">
-            <p className="text-emerald-400 text-sm">Password updated.</p>
+            <p className="text-[#F0EDDF]/90 text-sm">Password updated.</p>
             <p className="text-muted text-xs">Taking you to your library…</p>
           </div>
         ) : (

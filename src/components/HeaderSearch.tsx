@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, X, Music, Disc3 } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import { useUiStore } from "../lib/ui";
 
 type AlbumResult = {
   kind: "album";
@@ -25,7 +26,10 @@ export default function HeaderSearch() {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
+  // Mobile overlay open state lives in a shared store so the bottom tab bar's
+  // Search tab can open it too.
+  const mobileOpen = useUiStore((s) => s.searchOpen);
+  const setMobileOpen = useUiStore((s) => s.setSearchOpen);
   const [results, setResults] = useState<Result[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeIdx, setActiveIdx] = useState(-1);
@@ -271,15 +275,8 @@ export default function HeaderSearch() {
         )}
       </div>
 
-      {/* Mobile: icon button */}
-      <button
-        type="button"
-        onClick={() => setMobileOpen(true)}
-        aria-label="Search"
-        className="sm:hidden w-8 h-8 rounded-full bg-panel2 border border-edge hover:border-muted/60 flex items-center justify-center text-muted"
-      >
-        <Search size={15} />
-      </button>
+      {/* Mobile search is triggered from the bottom tab bar (see BottomTabBar),
+          which sets the shared `searchOpen` store. No header button on mobile. */}
 
       {/* Mobile overlay */}
       {mobileOpen && (

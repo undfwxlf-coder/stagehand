@@ -14,6 +14,7 @@ import { useAuth } from "../lib/auth";
 import Logo from "../components/Logo";
 import CommentFeed from "../components/CommentFeed";
 import BottomSheet from "../components/BottomSheet";
+import ArtBackdrop from "../components/ArtBackdrop";
 import {
   AudioLines,
   ChevronDown,
@@ -214,9 +215,9 @@ export default function ListenPage() {
     const ws = WaveSurfer.create({
       container: containerRef.current,
       height: 28,
-      waveColor: "#3a4150",
-      progressColor: "#ff5e3a",
-      cursorColor: "rgba(255,255,255,0.4)",
+      waveColor: "rgba(240,237,223,0.20)",
+      progressColor: "#BB0A21",
+      cursorColor: "rgba(240,237,223,0.4)",
       barWidth: 1.5,
       barRadius: 1,
       barGap: 1,
@@ -397,10 +398,16 @@ export default function ListenPage() {
     }
   };
 
+  const backdropArt =
+    data?.type === "track" ? data.album_artwork_url
+    : data?.type === "album" ? data.album.artwork_url
+    : null;
+
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="relative min-h-screen flex flex-col">
+      <ArtBackdrop artworkUrl={backdropArt} className="fixed inset-0" />
       <header
-        className="border-b border-edge bg-panel/60 backdrop-blur"
+        className="relative border-b border-white/[0.06] bg-ink/30 backdrop-blur-xl"
         style={{ paddingTop: "env(safe-area-inset-top)" }}
       >
         <div className="max-w-3xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-center">
@@ -410,7 +417,7 @@ export default function ListenPage() {
         </div>
       </header>
 
-      <main className="flex-1 flex items-center justify-center px-4 sm:px-6 py-10">
+      <main className="relative flex-1 flex items-center justify-center px-4 sm:px-6 py-10">
         {loading ? (
           <p className="text-muted">Loading…</p>
         ) : err ? (
@@ -839,20 +846,12 @@ export default function ListenPage() {
 
 function NowPlayingArtwork({ artworkUrl }: { artworkUrl: string | null }) {
   return (
-    <div className="relative mx-auto aspect-square w-full max-w-[260px]">
-      {artworkUrl && (
-        <img
-          src={artworkUrl}
-          alt=""
-          aria-hidden
-          className="absolute inset-0 w-full h-full object-cover rounded-2xl blur-3xl opacity-50 scale-110 pointer-events-none"
-        />
-      )}
-      <div className="relative w-full h-full rounded-2xl overflow-hidden bg-gradient-to-br from-panel2 to-ink border border-edge shadow-2xl flex items-center justify-center text-edge">
+    <div className="relative mx-auto aspect-square w-full max-w-[300px]">
+      <div className="relative w-full h-full rounded-3xl overflow-hidden bg-gradient-to-br from-white/10 to-white/[0.02] border border-white/10 shadow-glass-lg flex items-center justify-center text-white/30">
         {artworkUrl ? (
           <img src={artworkUrl} alt="" className="w-full h-full object-cover" />
         ) : (
-          <Music size={48} strokeWidth={1.2} />
+          <Music size={56} strokeWidth={1.2} />
         )}
       </div>
     </div>

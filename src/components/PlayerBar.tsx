@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { formatErr } from "../lib/errors";
 import WaveSurfer from "wavesurfer.js";
-import { Pause, Play, SkipBack, SkipForward, AlertTriangle } from "lucide-react";
+import { Pause, Play, SkipBack, SkipForward, AlertTriangle, Music } from "lucide-react";
 import { usePlayer, resolvePlayerUrl } from "../lib/player";
 import { fmtTime } from "../lib/audio";
 import { recordPlay } from "../lib/plays";
@@ -74,7 +74,7 @@ export default function PlayerBar() {
         container: containerRef.current,
         height: 32,
         waveColor: "rgba(255,255,255,0.18)",
-        progressColor: "#ff6b3d",
+        progressColor: "#BB0A21",
         cursorColor: "rgba(255,255,255,0.5)",
         barWidth: 2,
         barRadius: 2,
@@ -344,30 +344,39 @@ export default function PlayerBar() {
 
   return (
     <div
-      className="fixed inset-x-0 z-30 px-2 sm:px-4 pointer-events-none"
-      style={{ bottom: "max(0.5rem, env(safe-area-inset-bottom))" }}
+      className="fixed inset-x-0 z-30 px-3 sm:px-4 pointer-events-none bottom-[calc(env(safe-area-inset-bottom,0px)+4.75rem)] sm:bottom-3"
     >
-      <div className="max-w-5xl mx-auto pointer-events-auto glass-raised rounded-2xl sm:rounded-3xl overflow-hidden">
-        {/* Mobile-only thin progress bar at the top edge — subscribes to
-            positionSec on its own so the outer bar doesn't re-render 60x/sec. */}
+      <div className="max-w-5xl mx-auto pointer-events-auto glass-raised rounded-full relative">
+        {/* Mobile-only thin progress bar — inset along the bottom of the pill
+            so the full rounding doesn't clip it. Subscribes to positionSec on
+            its own so the outer bar doesn't re-render 60x/sec. */}
         <MobileProgressBar onSeek={seekRatio} />
 
-        <div className="px-3 sm:px-5 py-2.5 sm:py-3">
+        <div className="px-3 sm:px-5 pt-2.5 pb-4 sm:py-3">
           <div className="flex items-center gap-3 sm:gap-4">
             <button
               onClick={() => setExpanded(true)}
-              className="min-w-0 flex-1 sm:flex-none sm:w-56 text-left hover:bg-white/5 -mx-2 px-2 -my-1 py-1 rounded transition"
+              className="min-w-0 flex-1 sm:flex-none sm:w-60 text-left hover:bg-white/5 -mx-2 px-2 -my-1 py-1 rounded-xl transition flex items-center gap-3"
               aria-label="Expand now-playing"
               title="Tap to expand"
             >
-              <div className="text-sm font-medium text-white truncate tracking-tight">{current.title}</div>
-              <div className="text-xs text-white/50 truncate">{current.albumTitle}</div>
-              {loadError && (
-                <div className="text-xs text-red-400 truncate flex items-center gap-1" title={loadError}>
-                  <AlertTriangle size={12} className="shrink-0" />
-                  <span className="truncate">{loadError}</span>
-                </div>
-              )}
+              <div className="w-11 h-11 rounded-lg overflow-hidden shrink-0 bg-white/[0.06] border border-white/10 flex items-center justify-center text-white/30">
+                {current.artworkUrl ? (
+                  <img src={current.artworkUrl} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <Music size={18} strokeWidth={1.4} />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-medium text-white truncate tracking-tight">{current.title}</div>
+                <div className="text-xs text-white/50 truncate">{current.albumTitle}</div>
+                {loadError && (
+                  <div className="text-xs text-red-400 truncate flex items-center gap-1" title={loadError}>
+                    <AlertTriangle size={12} className="shrink-0" />
+                    <span className="truncate">{loadError}</span>
+                  </div>
+                )}
+              </div>
             </button>
 
             <div className="flex items-center gap-1 sm:gap-2 shrink-0">
@@ -453,12 +462,12 @@ function MobileProgressBar({ onSeek }: { onSeek: (ratio: number) => void }) {
         if (e.key === "ArrowLeft") onSeek(Math.max(0, ratio - 0.05));
         else if (e.key === "ArrowRight") onSeek(Math.min(1, ratio + 0.05));
       }}
-      className="sm:hidden cursor-pointer flex items-center"
-      style={{ touchAction: "none", height: 14 }}
+      className="sm:hidden absolute left-6 right-6 bottom-1.5 cursor-pointer flex items-center"
+      style={{ touchAction: "none", height: 12 }}
     >
-      <div className="w-full h-1 bg-white/10">
+      <div className="w-full h-1 rounded-full bg-white/15 overflow-hidden">
         <div
-          className="h-full bg-gradient-to-r from-accent to-[#ff8a5a]"
+          className="h-full rounded-full bg-gradient-to-r from-accent to-[#e0233a]"
           style={{ width: `${ratio * 100}%` }}
         />
       </div>
@@ -498,7 +507,7 @@ function VolumeControl({
         aria-label="Volume"
         className="flex-1 h-1 cursor-pointer"
         style={{
-          background: `linear-gradient(to right, #ff6b3d 0%, #ff8a5a ${effective * 100}%, rgba(255,255,255,0.12) ${effective * 100}%, rgba(255,255,255,0.12) 100%)`,
+          background: `linear-gradient(to right, #BB0A21 0%, #e0233a ${effective * 100}%, rgba(240,237,223,0.14) ${effective * 100}%, rgba(240,237,223,0.14) 100%)`,
           appearance: "none",
           borderRadius: 999,
         }}

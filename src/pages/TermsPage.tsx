@@ -5,8 +5,8 @@ const CONTACT_EMAIL = "stagehand.studio@gmail.com";
 export default function TermsPage() {
   return (
     <LegalPageShell title="Terms of Service" effectiveDate="May 17, 2026">
-      <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 mb-8 text-xs text-amber-200/90">
-        <strong className="text-amber-200">Beta notice.</strong> Stagehand is currently in
+      <div className="rounded-xl border border-accent/30 bg-accent/[0.06] px-4 py-3 mb-8 text-xs text-[#E0A6AB]/90">
+        <strong className="text-[#F4C9CE]">Beta notice.</strong> Stagehand is currently in
         invite-only beta. The service is provided as-is while we iterate; expect occasional bugs,
         downtime, and rare interruptions. We back up your data daily, but you should keep your own
         copies of your audio files.
