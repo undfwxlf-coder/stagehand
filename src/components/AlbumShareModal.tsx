@@ -45,9 +45,14 @@ function uiVisFor(link: ShareLink | null): UIVisibility {
 
 export default function AlbumShareModal({
   album,
+  isOwner = true,
   onClose,
 }: {
   album: Album;
+  // When false, the modal renders read-only: editors can see the link +
+  // members but cannot create / change / revoke shares or edit collab
+  // artists. Matches the post-migration RLS — sharing is owner-only.
+  isOwner?: boolean;
   onClose: () => void;
 }) {
   const [link, setLink] = useState<ShareLink | null>(null);
@@ -305,15 +310,23 @@ export default function AlbumShareModal({
 
         {/* Scrollable body */}
         <div className="relative flex-1 overflow-y-auto px-4 pb-5 min-h-0 space-y-4">
+          {/* Read-only banner when the caller isn't the owner (editor) */}
+          {!isOwner && (
+            <div className="glass rounded-2xl px-4 py-3 text-[13px] text-white/80">
+              <span className="text-white">Read-only.</span>
+              <span className="text-white/55"> Only the project owner can change sharing settings or credits.</span>
+            </div>
+          )}
+
           {/* Segmented visibility control — replaces dropdown */}
-          <SegmentedVisibility uiViz={uiViz} onChange={setVisibility} disabled={busy || loading} />
+          <SegmentedVisibility uiViz={uiViz} onChange={setVisibility} disabled={busy || loading || !isOwner} />
 
           {/* Collab / featured artists — applies to the album regardless of
               share visibility, so it sits above the invite list. */}
           <CollabArtistsSection
             collabArtists={collabArtists}
             onChange={persistCollabArtists}
-            disabled={busy}
+            disabled={busy || !isOwner}
           />
 
           {/* Invite list — inline when Invite Only is selected */}
@@ -322,6 +335,7 @@ export default function AlbumShareModal({
               shareLinkId={link.id}
               onCountChange={setMemberCount}
               collabArtists={collabArtists}
+              canPromote={isOwner}
               onPromote={(m) =>
                 persistCollabArtists([
                   ...collabArtists,
@@ -352,7 +366,7 @@ export default function AlbumShareModal({
                       sub={uiViz === "invite" ? "Members can edit + add tracks" : "Invite-only shares only"}
                       checked={Boolean(link?.allow_editing) && uiViz === "invite"}
                       onChange={setAllowEditing}
-                      disabled={uiViz !== "invite"}
+                      disabled={uiViz !== "invite" || !isOwner}
                     />
                     <ToggleRow
                       title="Allow downloads"
@@ -366,13 +380,13 @@ export default function AlbumShareModal({
                       sub={uiViz === "invite" ? "Always on for invite-only" : "Limit to Stagehand users"}
                       checked={Boolean(link?.require_account)}
                       onChange={setRequireAccount}
-                      disabled={uiViz === "invite" || uiViz === "private"}
+                      disabled={uiViz === "invite" || uiViz === "private" || !isOwner}
                     />
                   </div>
 
                   <button
                     onClick={resetLink}
-                    disabled={busy}
+                    disabled={busy || !isOwner}
                     className="w-full flex items-center justify-center gap-2 py-2.5 text-[13px] text-white/55 hover:text-white transition disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <RotateCcw size={14} className="shrink-0" />
@@ -510,11 +524,13 @@ function ShareMembers({
   shareLinkId,
   onCountChange,
   collabArtists,
+  canPromote,
   onPromote,
 }: {
   shareLinkId: string;
   onCountChange: (n: number) => void;
   collabArtists: CollabArtist[];
+  canPromote: boolean;
   onPromote: (m: ShareMember) => void;
 }) {
   const [members, setMembers] = useState<ShareMember[]>([]);
@@ -582,7 +598,7 @@ function ShareMembers({
               </div>
               <div className="text-[12px] text-white/45">Joined {fmtJoinedAt(m.joined_at)}</div>
             </div>
-            {!promoted && (
+            {!promoted && canPromote && (
               <button
                 onClick={() => onPromote(m)}
                 className="shrink-0 text-[12px] text-white/65 hover:text-white px-2.5 py-1.5 rounded-lg border border-white/[0.08] hover:border-white/[0.2] transition flex items-center gap-1"

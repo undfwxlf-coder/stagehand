@@ -50,12 +50,16 @@ export default function ShareModal({
   track,
   version,
   albumArtworkUrl,
+  isOwner = true,
   onClose,
   onTrackChange,
 }: {
   track: Track;
   version: Version;
   albumArtworkUrl?: string | null;
+  // When false, the modal renders read-only — matches the post-migration
+  // RLS: editors can see existing shares but can't create or change them.
+  isOwner?: boolean;
   onClose: () => void;
   onTrackChange?: (patch: Partial<Track>) => void;
 }) {
@@ -301,7 +305,14 @@ export default function ShareModal({
         </div>
 
         <div className="relative flex-1 overflow-y-auto px-4 pb-5 min-h-0 space-y-4">
-          <SegmentedVisibility uiViz={uiViz} onChange={setVisibility} disabled={busy || loading} />
+          {!isOwner && (
+            <div className="glass rounded-2xl px-4 py-3 text-[13px] text-white/80">
+              <span className="text-white">Read-only.</span>
+              <span className="text-white/55"> Only the project owner can change sharing settings.</span>
+            </div>
+          )}
+
+          <SegmentedVisibility uiViz={uiViz} onChange={setVisibility} disabled={busy || loading || !isOwner} />
 
           {uiViz === "invite" && link && (
             <ShareMembers shareLinkId={link.id} onCountChange={setMemberCount} />
@@ -327,19 +338,20 @@ export default function ShareModal({
                       sub="Can export audio"
                       checked={Boolean(track.allow_download)}
                       onChange={setAllowDownloads}
+                      disabled={!isOwner}
                     />
                     <ToggleRow
                       title="Require account"
                       sub={uiViz === "invite" ? "Always on for invite-only" : "Limit to Stagehand users"}
                       checked={Boolean(link?.require_account)}
                       onChange={setRequireAccount}
-                      disabled={uiViz === "invite" || uiViz === "private"}
+                      disabled={uiViz === "invite" || uiViz === "private" || !isOwner}
                     />
                   </div>
 
                   <button
                     onClick={resetLink}
-                    disabled={busy}
+                    disabled={busy || !isOwner}
                     className="w-full flex items-center justify-center gap-2 py-2.5 text-[13px] text-white/55 hover:text-white transition disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <RotateCcw size={14} className="shrink-0" />

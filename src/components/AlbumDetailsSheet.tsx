@@ -204,6 +204,7 @@ export default function AlbumDetailsSheet({
       {shareOpen && (
         <AlbumShareModal
           album={album}
+          isOwner={isOwner}
           onClose={() => {
             setShareOpen(false);
             listAlbumShareLinks(album.id).then(setLinks).catch(() => { /* silent */ });

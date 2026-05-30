@@ -707,6 +707,7 @@ export default function AlbumPage() {
             albumCollabArtists={album.collab_artists ?? []}
             artistName={(user?.user_metadata?.artist_name as string | undefined) ?? null}
             ownerId={user?.id ?? ""}
+            isOwner={isOwner}
             onClose={() => setDetailsTrackId(null)}
             onTrackChange={(patch) =>
               setTracks((rows) => rows.map((r) => (r.id === t.id ? { ...r, ...patch } : r)))

@@ -17,7 +17,12 @@ interface TrackDetailsSheetProps {
   albumArtworkUrl: string | null;
   albumCollabArtists: CollabArtist[];
   artistName: string | null;
+  // The current user's id (used as a folder prefix for uploads from this sheet).
   ownerId: string;
+  // True when the current user owns the parent album. Editors can still
+  // open this sheet but post-migration cannot delete the track or create
+  // new share links — gated below.
+  isOwner: boolean;
   onClose: () => void;
   onTrackChange: (patch: Partial<Track>) => void;
   onRequestReplaceAudio?: () => void;
@@ -32,6 +37,7 @@ export default function TrackDetailsSheet({
   albumCollabArtists,
   artistName,
   ownerId,
+  isOwner,
   onClose,
   onTrackChange,
   onRequestReplaceAudio,
@@ -387,12 +393,14 @@ export default function TrackDetailsSheet({
                   disabled={!version || downloadBusy}
                   onClick={onExportAudio}
                 />
-                <ActionRow
-                  icon={<TrashIcon />}
-                  label="Delete track"
-                  onClick={deleteTrack}
-                  destructive
-                />
+                {isOwner && (
+                  <ActionRow
+                    icon={<TrashIcon />}
+                    label="Delete track"
+                    onClick={deleteTrack}
+                    destructive
+                  />
+                )}
               </div>
               <input
                 ref={singleCoverInputRef}
@@ -468,6 +476,7 @@ export default function TrackDetailsSheet({
           track={track}
           version={version}
           albumArtworkUrl={albumArtworkUrl}
+          isOwner={isOwner}
           onTrackChange={onTrackChange}
           onClose={() => {
             setShareOpen(false);
