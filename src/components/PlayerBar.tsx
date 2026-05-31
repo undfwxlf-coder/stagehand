@@ -488,12 +488,12 @@ function VolumeControl({
 }) {
   const effective = muted ? 0 : volume;
   return (
-    <div className="hidden sm:flex items-center gap-2 w-32">
+    <div className="hidden sm:flex items-center gap-2 w-28 shrink-0 mr-1">
       <button
         onClick={onToggleMute}
         aria-label={muted ? "Unmute" : "Mute"}
         title={muted ? "Unmute" : "Mute"}
-        className="w-8 h-8 rounded-full text-white/60 hover:text-white hover:bg-white/10 flex items-center justify-center transition"
+        className="w-7 h-7 shrink-0 rounded-full text-white/60 hover:text-white hover:bg-white/10 flex items-center justify-center transition"
       >
         <VolumeIcon level={effective} muted={muted} />
       </button>
@@ -505,11 +505,18 @@ function VolumeControl({
         value={effective}
         onChange={(e) => onVolumeChange(parseFloat(e.target.value))}
         aria-label="Volume"
-        className="flex-1 h-1 cursor-pointer"
+        className={[
+          "min-w-0 flex-1 h-1 cursor-pointer rounded-full",
+          "appearance-none [-webkit-appearance:none]",
+          "outline-none focus:outline-none focus-visible:outline-none",
+          "[&::-webkit-slider-runnable-track]:h-1 [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-transparent",
+          "[&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:[-webkit-appearance:none]",
+          "[&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:-mt-1 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#F0EDDF] [&::-webkit-slider-thumb]:border-0 [&::-webkit-slider-thumb]:cursor-pointer",
+          "[&::-moz-range-track]:h-1 [&::-moz-range-track]:bg-transparent [&::-moz-range-track]:border-0",
+          "[&::-moz-range-thumb]:w-3 [&::-moz-range-thumb]:h-3 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-[#F0EDDF] [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:cursor-pointer",
+        ].join(" ")}
         style={{
           background: `linear-gradient(to right, #BB0A21 0%, #e0233a ${effective * 100}%, rgba(240,237,223,0.14) ${effective * 100}%, rgba(240,237,223,0.14) 100%)`,
-          appearance: "none",
-          borderRadius: 999,
         }}
       />
     </div>
