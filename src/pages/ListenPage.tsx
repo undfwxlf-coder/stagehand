@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { formatErr } from "../lib/errors";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import WaveSurfer from "wavesurfer.js";
 import { supabase } from "../lib/supabase";
 import type { CollabArtist, ShareLink, Track, Version } from "../lib/database.types";
@@ -87,9 +87,19 @@ function messageFor(status: string, signedIn: boolean): string {
   }
 }
 
-function ctaFor(status: string, signedIn: boolean): ResolveStatus["cta"] | undefined {
+function ctaFor(
+  status: string,
+  signedIn: boolean,
+  returnPath: string,
+): ResolveStatus["cta"] | undefined {
   if (status === "requires_signin" && !signedIn) {
-    return { label: "Sign in to Stagehand", href: "/auth" };
+    // Round-trip through auth: after sign-in, AuthPage honors ?next= and
+    // sends them straight back here so the collab link doesn't need to be
+    // re-pasted.
+    return {
+      label: "Sign in to Stagehand",
+      href: `/auth?next=${encodeURIComponent(returnPath)}`,
+    };
   }
   if (status === "not_invited" && signedIn) {
     return undefined;
@@ -421,9 +431,13 @@ export default function ListenPage() {
         {loading ? (
           <p className="text-muted">Loading…</p>
         ) : err ? (
-          <ErrorCard message={err} cta={errStatus ? ctaFor(errStatus, Boolean(user)) : undefined} />
+          <ErrorCard
+            message={err}
+            cta={errStatus ? ctaFor(errStatus, Boolean(user), `/listen/${slug ?? ""}`) : undefined}
+          />
         ) : data?.type === "track" ? (
           <div className="max-w-md w-full">
+            <EditorHandoff data={data} signedIn={Boolean(user)} />
             <NowPlayingArtwork artworkUrl={data.album_artwork_url} />
 
             <div className="mt-7 flex items-start gap-3">
@@ -511,6 +525,7 @@ export default function ListenPage() {
           </div>
         ) : data?.type === "album" && activeAlbumTrack && albumView === "player" ? (
           <div className="max-w-md w-full">
+            <EditorHandoff data={data} signedIn={Boolean(user)} />
             <div className="mb-5 flex items-center justify-between">
               <button
                 onClick={() => {
@@ -639,6 +654,7 @@ export default function ListenPage() {
           </div>
         ) : data?.type === "album" ? (
           <div className="max-w-3xl w-full">
+            <EditorHandoff data={data} signedIn={Boolean(user)} />
             <div className="flex flex-col sm:flex-row gap-5 sm:gap-6 items-center sm:items-start mb-6">
               <div className="w-40 h-40 sm:w-48 sm:h-48 rounded-2xl bg-gradient-to-br from-panel2 to-ink border border-edge flex items-center justify-center text-edge shrink-0 overflow-hidden">
                 {data.album.artwork_url ? (
@@ -840,6 +856,43 @@ export default function ListenPage() {
           </a>
         </div>
       </footer>
+    </div>
+  );
+}
+
+// When the listener arrives via an invite share with edit access (and is
+// signed in), they were just auto-joined to share_members and now have
+// editor RLS on the underlying album. Without this banner the only way
+// to discover that is to scroll the library for the "Shared with me"
+// section — easy to miss. The CTA jumps them straight into the editor.
+function EditorHandoff({
+  data,
+  signedIn,
+}: {
+  data: ResolvedShare;
+  signedIn: boolean;
+}) {
+  if (!signedIn) return null;
+  if (data.link.visibility !== "invite") return null;
+  if (!data.link.allow_editing) return null;
+  const to =
+    data.type === "track"
+      ? `/track/${data.track.id}`
+      : `/album/${data.album.id}`;
+  return (
+    <div className="mb-6 glass-raised rounded-2xl px-4 py-3 flex items-center gap-3">
+      <div className="flex-1 min-w-0">
+        <div className="text-sm text-white font-medium">You're a collaborator</div>
+        <div className="text-xs text-white/65 mt-0.5">
+          Edit access on this project — open it in your library.
+        </div>
+      </div>
+      <Link
+        to={to}
+        className="shrink-0 text-sm bg-accent hover:bg-accent/90 text-white font-medium px-3 py-1.5 rounded-full transition"
+      >
+        Open editor
+      </Link>
     </div>
   );
 }

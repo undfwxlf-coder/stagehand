@@ -1,10 +1,22 @@
 import { useState } from "react";
-import { Link, Navigate } from "react-router-dom";
+import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import Logo from "../components/Logo";
 
+// Only same-origin pathname targets are honored as a post-auth redirect —
+// anything starting with "//" (protocol-relative) or "http(s)://" is dropped
+// so a forged ?next= query can't bounce the user to an external site.
+function safeNextPath(next: string | null): string {
+  if (!next) return "/";
+  if (!next.startsWith("/")) return "/";
+  if (next.startsWith("//")) return "/";
+  return next;
+}
+
 export default function AuthPage() {
   const { user, loading, configured, signIn, signUp, resetPassword } = useAuth();
+  const [searchParams] = useSearchParams();
+  const nextPath = safeNextPath(searchParams.get("next"));
   const [mode, setMode] = useState<"signin" | "signup" | "forgot">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -14,7 +26,7 @@ export default function AuthPage() {
   const [info, setInfo] = useState<string | null>(null);
 
   if (loading) return null;
-  if (user) return <Navigate to="/" replace />;
+  if (user) return <Navigate to={nextPath} replace />;
 
   if (!configured) {
     return (
