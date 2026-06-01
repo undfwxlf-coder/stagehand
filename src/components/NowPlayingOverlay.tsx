@@ -285,15 +285,13 @@ export default function NowPlayingOverlay() {
 
       {showComments && (
         <BottomSheet onClose={() => setShowComments(false)} title="Comments">
-          <CommentFeed
+          <LivePositionCommentFeed
             trackId={current.trackId}
             versionId={current.versionId}
-            currentTimeSec={positionSec}
             onSeek={(sec) => {
               seekTo(sec);
               setShowComments(false);
             }}
-            canPost={true}
           />
         </BottomSheet>
       )}
@@ -354,6 +352,30 @@ export default function NowPlayingOverlay() {
         </BottomSheet>
       )}
     </div>
+  );
+}
+
+// Same isolated-subscription pattern as ProgressAndTime — gives the
+// comment composer the live playhead without making the parent overlay
+// re-render every audioprocess tick.
+function LivePositionCommentFeed({
+  trackId,
+  versionId,
+  onSeek,
+}: {
+  trackId: string;
+  versionId: string;
+  onSeek: (sec: number) => void;
+}) {
+  const positionSec = usePlayer((s) => s.positionSec);
+  return (
+    <CommentFeed
+      trackId={trackId}
+      versionId={versionId}
+      currentTimeSec={positionSec}
+      onSeek={onSeek}
+      canPost={true}
+    />
   );
 }
 
