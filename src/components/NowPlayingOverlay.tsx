@@ -69,19 +69,23 @@ export default function NowPlayingOverlay() {
     return () => window.removeEventListener("keydown", onEsc);
   }, [expanded, setExpanded]);
 
-  if (!current || !expanded) return null;
-
-  const fb = audioFormatFromFilename(current.storagePath ?? current.audioUrl ?? "");
-  const qualityDetail = formatQualityLabel(fb.format, null);
-
-  // Stable until queue identity or current track changes.
+  // Memoize prev/next availability. Must run unconditionally — Rules of
+  // Hooks — so it's placed BEFORE the early return below. Guards against
+  // current being null on first render.
+  const currentVersionId = current?.versionId ?? null;
   const { hasPrev, hasNext } = useMemo(() => {
-    const idx = queue.findIndex((t) => t.versionId === current.versionId);
+    if (!currentVersionId) return { hasPrev: false, hasNext: false };
+    const idx = queue.findIndex((t) => t.versionId === currentVersionId);
     return {
       hasPrev: idx > 0,
       hasNext: idx >= 0 && idx < queue.length - 1,
     };
-  }, [queue, current.versionId]);
+  }, [queue, currentVersionId]);
+
+  if (!current || !expanded) return null;
+
+  const fb = audioFormatFromFilename(current.storagePath ?? current.audioUrl ?? "");
+  const qualityDetail = formatQualityLabel(fb.format, null);
 
   const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
     if (sheetOpen) return;
