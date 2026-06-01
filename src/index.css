@@ -45,7 +45,9 @@ h3 {
 }
 
 @layer components {
-  /* Liquid-glass surface — warm-tinted translucency, blurred, hairline border */
+  /* Liquid-glass surface — warm-tinted translucency, blurred, hairline border.
+     transform:translateZ(0) forces a compositor layer so scroll/animation
+     doesn't re-rasterize the blur underneath each frame. */
   .glass {
     background: rgba(240, 237, 223, 0.04);
     backdrop-filter: blur(24px) saturate(180%);
@@ -54,6 +56,7 @@ h3 {
     box-shadow:
       inset 0 1px 0 0 rgba(240, 237, 223, 0.06),
       0 10px 40px -10px rgba(0, 0, 0, 0.5);
+    transform: translateZ(0);
   }
 
   .glass-raised {
@@ -64,6 +67,7 @@ h3 {
     box-shadow:
       inset 0 1px 0 0 rgba(240, 237, 223, 0.08),
       0 20px 60px -20px rgba(0, 0, 0, 0.6);
+    transform: translateZ(0);
   }
 
   .glass-strong {
@@ -74,6 +78,27 @@ h3 {
     box-shadow:
       inset 0 1px 0 0 rgba(240, 237, 223, 0.10),
       0 32px 80px -24px rgba(0, 0, 0, 0.7);
+    transform: translateZ(0);
+  }
+
+  /* Cut blur cost roughly in half on phones. Mobile Safari rasterizes
+     backdrop-filter per frame; with three stacked glass surfaces (player
+     pill, tab bar, now-playing card) at desktop strength, scrolling and
+     overlay drags drop frames. The visual difference at these radii is
+     subtle on a small screen but the GPU win is large. */
+  @media (max-width: 640px) {
+    .glass {
+      backdrop-filter: blur(14px) saturate(160%);
+      -webkit-backdrop-filter: blur(14px) saturate(160%);
+    }
+    .glass-raised {
+      backdrop-filter: blur(16px) saturate(160%);
+      -webkit-backdrop-filter: blur(16px) saturate(160%);
+    }
+    .glass-strong {
+      backdrop-filter: blur(20px) saturate(170%);
+      -webkit-backdrop-filter: blur(20px) saturate(170%);
+    }
   }
 }
 

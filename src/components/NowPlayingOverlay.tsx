@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   AudioLines,
@@ -9,6 +9,9 @@ import {
   MoreHorizontal,
   Pause,
   Play,
+  Repeat,
+  Repeat1,
+  Shuffle,
   SkipBack,
   SkipForward,
   SlidersHorizontal,
@@ -19,22 +22,42 @@ import CommentFeed from "./CommentFeed";
 import BottomSheet from "./BottomSheet";
 import ArtBackdrop from "./ArtBackdrop";
 
+// Drag-down distance (px) past which the overlay dismisses on release.
+const DISMISS_THRESHOLD_PX = 120;
+// Below this delta we don't react at all (prevents jitter on micro-taps and
+// lets the progress slider / buttons keep their normal touch behavior).
+const DRAG_ENGAGE_PX = 10;
+
 export default function NowPlayingOverlay() {
+  // Per-field selectors so the parent only re-renders on these specific
+  // changes — not on every audioprocess tick. Position + duration live in
+  // their own subtree (`ProgressAndTime`) so the 10Hz updates don't repaint
+  // artwork, transport, title, etc.
   const current = usePlayer((s) => s.current);
   const expanded = usePlayer((s) => s.expanded);
   const setExpanded = usePlayer((s) => s.setExpanded);
   const isPlaying = usePlayer((s) => s.isPlaying);
-  const positionSec = usePlayer((s) => s.positionSec);
-  const durationSec = usePlayer((s) => s.durationSec);
   const toggle = usePlayer((s) => s.toggle);
   const next = usePlayer((s) => s.next);
   const prev = usePlayer((s) => s.prev);
   const queue = usePlayer((s) => s.queue);
   const seekTo = usePlayer((s) => s.seekTo);
+  const shuffle = usePlayer((s) => s.shuffle);
+  const repeat = usePlayer((s) => s.repeat);
+  const toggleShuffle = usePlayer((s) => s.toggleShuffle);
+  const cycleRepeat = usePlayer((s) => s.cycleRepeat);
 
   const [showComments, setShowComments] = useState(false);
   const [showQueue, setShowQueue] = useState(false);
   const [showMore, setShowMore] = useState(false);
+
+  // Drag-to-dismiss (mobile). Stored in state so the transform recalculates,
+  // but the dragging flag stays in refs to avoid extra renders during the
+  // gesture.
+  const [dragY, setDragY] = useState(0);
+  const dragStartYRef = useRef<number | null>(null);
+  const dragEngagedRef = useRef(false);
+  const sheetOpen = showComments || showQueue || showMore;
 
   // Esc closes the overlay.
   useEffect(() => {
@@ -48,16 +71,74 @@ export default function NowPlayingOverlay() {
 
   if (!current || !expanded) return null;
 
-  const remaining = Math.max(0, (durationSec || 0) - positionSec);
   const fb = audioFormatFromFilename(current.storagePath ?? current.audioUrl ?? "");
   const qualityDetail = formatQualityLabel(fb.format, null);
 
-  const idxInQueue = queue.findIndex((t) => t.versionId === current.versionId);
-  const hasPrev = idxInQueue > 0;
-  const hasNext = idxInQueue >= 0 && idxInQueue < queue.length - 1;
+  // Stable until queue identity or current track changes.
+  const { hasPrev, hasNext } = useMemo(() => {
+    const idx = queue.findIndex((t) => t.versionId === current.versionId);
+    return {
+      hasPrev: idx > 0,
+      hasNext: idx >= 0 && idx < queue.length - 1,
+    };
+  }, [queue, current.versionId]);
+
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (sheetOpen) return;
+    const target = e.target as HTMLElement;
+    // Skip elements that handle their own pointer/touch (progress slider, buttons).
+    if (target.closest("[data-no-drag]")) return;
+    dragStartYRef.current = e.touches[0].clientY;
+    dragEngagedRef.current = false;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (dragStartYRef.current == null) return;
+    const dy = e.touches[0].clientY - dragStartYRef.current;
+    if (!dragEngagedRef.current) {
+      if (dy > DRAG_ENGAGE_PX) dragEngagedRef.current = true;
+      else return;
+    }
+    // Only drag down. Apply a soft rubber-band so we never feel jumpy.
+    setDragY(Math.max(0, dy));
+  };
+
+  const handleTouchEnd = () => {
+    if (dragStartYRef.current == null) return;
+    if (dragY > DISMISS_THRESHOLD_PX) {
+      // Slide off-screen then unmount. Browsers will mark the overlay as
+      // not visible immediately; the visual exit runs via CSS transition.
+      setDragY(window.innerHeight);
+      window.setTimeout(() => {
+        setExpanded(false);
+        setDragY(0);
+      }, 180);
+    } else {
+      setDragY(0);
+    }
+    dragStartYRef.current = null;
+    dragEngagedRef.current = false;
+  };
+
+  // Opacity fades from 1 → 0.6 as we drag toward dismiss for a tactile feel.
+  const dragProgress = Math.min(1, dragY / (DISMISS_THRESHOLD_PX * 2));
+  const overlayStyle: React.CSSProperties = {
+    transform: `translateY(${dragY}px)`,
+    transition: dragStartYRef.current == null ? "transform 180ms ease-out, opacity 180ms ease-out" : "none",
+    opacity: 1 - dragProgress * 0.35,
+    willChange: "transform",
+    touchAction: "pan-y",
+  };
 
   return (
-    <div className="fixed inset-0 z-40 flex flex-col overflow-hidden">
+    <div
+      className="fixed inset-0 z-40 flex flex-col overflow-hidden"
+      style={overlayStyle}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchEnd}
+    >
       {/* Full-bleed sharp cover fills the screen; the bottom glass card floats
           over its lower third (the reference now-playing composition). Falls
           back to the ambient backdrop when the track has no artwork. */}
@@ -75,8 +156,11 @@ export default function NowPlayingOverlay() {
         <ArtBackdrop artworkUrl={null} className="absolute inset-0" />
       )}
 
-      {/* Top bar over the art */}
+      {/* Top bar over the art. Top padding clears the Dynamic Island /
+          notch on phones via env(safe-area-inset-top). data-no-drag keeps
+          taps on the chevron / more buttons from starting a dismiss drag. */}
       <div
+        data-no-drag
         className="relative flex items-center justify-between px-4 sm:px-6 pb-2"
         style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}
       >
@@ -107,7 +191,7 @@ export default function NowPlayingOverlay() {
         className="relative w-full px-3 sm:px-0 sm:max-w-md sm:mx-auto"
         style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
       >
-        <div className="glass-strong rounded-3xl px-5 py-5 sm:px-6">
+        <div data-no-drag className="glass-strong rounded-3xl px-5 py-5 sm:px-6">
           <div className="flex items-start gap-3">
             <div className="min-w-0 flex-1">
               <h1 className="text-[24px] sm:text-[28px] leading-tight font-bold text-white tracking-tight truncate">
@@ -137,34 +221,49 @@ export default function NowPlayingOverlay() {
             )}
           </div>
 
-          <ProgressSlider position={positionSec} duration={durationSec} onSeek={seekTo} />
+          <ProgressAndTime onSeek={seekTo} />
 
-          <div className="flex items-center justify-between mt-2">
-            <span className="text-xs text-white/55 tabular-nums">{fmtTime(positionSec)}</span>
-            <span className="text-xs text-white/55 tabular-nums">
-              {durationSec > 0 ? `-${fmtTime(remaining)}` : fmtTime(durationSec)}
-            </span>
-          </div>
-
-          <div className="flex items-center justify-center gap-10 mt-4">
-            <IconBtn onClick={prev} disabled={!hasPrev} label="Previous track">
-              <SkipBack size={24} fill="currentColor" />
-            </IconBtn>
-            <button
-              onClick={toggle}
-              className="w-[68px] h-[68px] rounded-full bg-white text-ink flex items-center justify-center hover:scale-105 active:scale-95 transition shadow-glass-lg"
-              aria-label={isPlaying ? "Pause" : "Play"}
+          <div className="flex items-center justify-between mt-4 px-1">
+            <ToggleBtn
+              onClick={toggleShuffle}
+              active={shuffle}
+              label={shuffle ? "Shuffle on" : "Shuffle off"}
             >
-              {isPlaying ? <Pause size={26} fill="currentColor" /> : <Play size={26} fill="currentColor" className="translate-x-[1px]" />}
-            </button>
-            <IconBtn onClick={next} disabled={!hasNext} label="Next track">
-              <SkipForward size={24} fill="currentColor" />
-            </IconBtn>
+              <Shuffle size={18} />
+            </ToggleBtn>
+            <div className="flex items-center gap-8">
+              <IconBtn onClick={prev} disabled={!hasPrev} label="Previous track">
+                <SkipBack size={24} fill="currentColor" />
+              </IconBtn>
+              <button
+                onClick={toggle}
+                className="w-[68px] h-[68px] rounded-full bg-white text-ink flex items-center justify-center hover:scale-105 active:scale-95 transition shadow-glass-lg"
+                aria-label={isPlaying ? "Pause" : "Play"}
+              >
+                {isPlaying ? <Pause size={26} fill="currentColor" /> : <Play size={26} fill="currentColor" className="translate-x-[1px]" />}
+              </button>
+              <IconBtn onClick={next} disabled={!hasNext} label="Next track">
+                <SkipForward size={24} fill="currentColor" />
+              </IconBtn>
+            </div>
+            <ToggleBtn
+              onClick={cycleRepeat}
+              active={repeat !== "off"}
+              label={
+                repeat === "off"
+                  ? "Repeat off"
+                  : repeat === "one"
+                  ? "Repeat this track"
+                  : "Repeat album"
+              }
+            >
+              {repeat === "one" ? <Repeat1 size={18} /> : <Repeat size={18} />}
+            </ToggleBtn>
           </div>
         </div>
 
         {/* Utility icon row — sits on the art beneath the card */}
-        <div className="flex items-center justify-around px-6 pt-3.5">
+        <div data-no-drag className="flex items-center justify-around px-6 pt-3.5">
           <RowIcon onClick={() => setShowComments(true)} label="Comments">
             <MessageSquare size={20} />
           </RowIcon>
@@ -258,6 +357,26 @@ export default function NowPlayingOverlay() {
   );
 }
 
+// Isolated subscription. Re-renders ~10x/sec (throttled by PlayerBar's
+// audioprocess) but only this small subtree, not the whole overlay —
+// keeps artwork, transport, title etc. from repainting every tick.
+function ProgressAndTime({ onSeek }: { onSeek: (sec: number) => void }) {
+  const positionSec = usePlayer((s) => s.positionSec);
+  const durationSec = usePlayer((s) => s.durationSec);
+  const remaining = Math.max(0, (durationSec || 0) - positionSec);
+  return (
+    <>
+      <ProgressSlider position={positionSec} duration={durationSec} onSeek={onSeek} />
+      <div className="flex items-center justify-between mt-2">
+        <span className="text-xs text-white/55 tabular-nums">{fmtTime(positionSec)}</span>
+        <span className="text-xs text-white/55 tabular-nums">
+          {durationSec > 0 ? `-${fmtTime(remaining)}` : fmtTime(durationSec)}
+        </span>
+      </div>
+    </>
+  );
+}
+
 function ProgressSlider({
   position,
   duration,
@@ -270,7 +389,7 @@ function ProgressSlider({
   const dur = duration > 0 && isFinite(duration) ? duration : 0;
   const pct = dur > 0 ? Math.min(1, Math.max(0, position / dur)) * 100 : 0;
   return (
-    <div className="mt-6 w-full">
+    <div data-no-drag className="mt-6 w-full">
       <div
         className="relative h-1.5 bg-white/15 rounded-full cursor-pointer group"
         onClick={(e) => {
@@ -311,6 +430,37 @@ function IconBtn({
       aria-label={label}
       title={label}
       className="w-12 h-12 rounded-full text-white/90 hover:text-white hover:bg-white/10 flex items-center justify-center transition disabled:opacity-30"
+    >
+      {children}
+    </button>
+  );
+}
+
+// Smaller toggle for the shuffle/repeat flanking buttons. Active state
+// uses the accent color + a soft glow so it's clearly "on" without a
+// big background pill that would crowd the transport row.
+function ToggleBtn({
+  children,
+  onClick,
+  active,
+  label,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  active: boolean;
+  label: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-label={label}
+      aria-pressed={active}
+      title={label}
+      className={`w-10 h-10 rounded-full flex items-center justify-center transition ${
+        active
+          ? "text-accent bg-accent/12 shadow-[0_0_18px_-4px_rgba(187,10,33,0.45)]"
+          : "text-white/65 hover:text-white hover:bg-white/10"
+      }`}
     >
       {children}
     </button>

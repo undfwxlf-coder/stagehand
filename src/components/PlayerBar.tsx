@@ -20,6 +20,7 @@ export default function PlayerBar() {
   const queue = usePlayer((s) => s.queue);
   const next = usePlayer((s) => s.next);
   const prev = usePlayer((s) => s.prev);
+  const autoAdvance = usePlayer((s) => s.autoAdvance);
   const toggle = usePlayer((s) => s.toggle);
   const volume = usePlayer((s) => s.volume);
   const muted = usePlayer((s) => s.muted);
@@ -54,6 +55,11 @@ export default function PlayerBar() {
   // `ended` — otherwise that pause flips isPlaying back to false and the next
   // track loads but doesn't auto-play.
   const finishingRef = useRef(false);
+  // True when wavesurfer paused without the user asking — iOS audio session
+  // interrupt (Apple Music / phone call / AirPods swap), tab backgrounded,
+  // OS taking the audio focus. We capture intent here so when the page
+  // becomes visible / focused again we can resume automatically.
+  const interruptedRef = useRef(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // Lazily create the wavesurfer instance on the first track-change effect.
@@ -145,7 +151,16 @@ export default function PlayerBar() {
           console.log("[player] pause (suppressed — auto-advance in flight)");
           return;
         }
-        console.log("[player] pause");
+        // If the store still thinks we should be playing, this pause was
+        // not user-initiated (iOS audio interrupt, tab backgrounded, OS
+        // muting). Capture intent so the visibility/focus listener can
+        // auto-resume when we get the audio session back.
+        if (usePlayer.getState().isPlaying) {
+          interruptedRef.current = true;
+          console.log("[player] pause (external — interrupted, will resume on return)");
+        } else {
+          console.log("[player] pause");
+        }
         setPlaying(false);
       });
       ws.on("finish", () => {
@@ -171,7 +186,9 @@ export default function PlayerBar() {
         // next track to load (queue end) — we don't want to swallow real
         // pauses forever.
         setTimeout(() => { finishingRef.current = false; }, 250);
-        next();
+        // autoAdvance honors repeat:"one" / repeat:"all" / shuffle. The
+        // user-facing next() button on the transport always advances.
+        autoAdvance();
       });
 
       wsRef.current = ws;
@@ -193,7 +210,7 @@ export default function PlayerBar() {
         setLoadError(formatErr(e));
       }
     })();
-  }, [current, next, setDuration, setPlaying, setPosition]);
+  }, [current, autoAdvance, setDuration, setPlaying, setPosition]);
 
   // Tear down the wavesurfer instance on unmount.
   useEffect(() => {
@@ -317,6 +334,37 @@ export default function PlayerBar() {
       try { ms.setActionHandler("seekto", null); } catch { /* ignore */ }
     };
   }, [next, prev, setPlaying]);
+
+  // Auto-resume after an external audio interruption. When iOS hands the
+  // audio session to another app (Apple Music, a phone call, AirPods swap)
+  // or the tab gets backgrounded with audio focus stolen, wavesurfer pauses
+  // and we mark interruptedRef. When the user returns to the tab (visibility,
+  // focus, or pageshow), we restore play. iOS doesn't surface a clean
+  // "interruption ended" event for web apps, so coming back to the tab is
+  // the most reliable resume trigger.
+  useEffect(() => {
+    const resume = () => {
+      if (!interruptedRef.current) return;
+      if (document.visibilityState !== "visible") return;
+      const ws = wsRef.current;
+      if (!ws || !readyRef.current) return;
+      interruptedRef.current = false;
+      console.log("[player] resuming after interruption");
+      setPlaying(true);
+      ws.play().catch((e) => {
+        console.warn("[player] auto-resume play() rejected", e);
+        setPlaying(false);
+      });
+    };
+    document.addEventListener("visibilitychange", resume);
+    window.addEventListener("focus", resume);
+    window.addEventListener("pageshow", resume);
+    return () => {
+      document.removeEventListener("visibilitychange", resume);
+      window.removeEventListener("focus", resume);
+      window.removeEventListener("pageshow", resume);
+    };
+  }, [setPlaying]);
 
   // Reflect play state to MediaSession.
   useEffect(() => {
