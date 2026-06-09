@@ -56,6 +56,45 @@ const PHASE_MESSAGES: Record<Exclude<UploadPhase, "done" | "error">, string> = {
   saving: "Saving…",
 };
 
+// Supabase Free Tier caps individual uploads at 50 MB project-wide. Pro lifts
+// this. Keep in sync with the project's Storage → Settings → Global file size
+// limit; client-side check just lets us fail fast with a friendly message
+// before wasting a multi-second XHR roundtrip on a guaranteed 413.
+export const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+
+function formatMB(bytes: number): string {
+  const mb = bytes / (1024 * 1024);
+  return mb >= 100 ? `${Math.round(mb)} MB` : `${mb.toFixed(1)} MB`;
+}
+
+// Map raw HTTP/network errors from the Storage REST API into something a
+// musician actually wants to read in the inline error pill on the track row.
+function friendlyUploadError(status: number, responseText: string, fileSize: number): string {
+  if (status === 413) {
+    return `File is ${formatMB(fileSize)} — over the ${formatMB(MAX_UPLOAD_BYTES)} upload limit on the free plan. Try a smaller export or upgrade Supabase.`;
+  }
+  if (status === 401 || status === 403) {
+    return "You're not authorized to upload to this album. Try signing out and back in.";
+  }
+  if (status === 409) {
+    return "A file with that name already exists. Rename and try again.";
+  }
+  if (status === 429) {
+    return "Too many uploads in a row — wait a minute and retry.";
+  }
+  if (status >= 500) {
+    return "Storage is temporarily unavailable. Try again in a moment.";
+  }
+  // Last-resort fallback — try to surface the server's `message` field instead
+  // of the whole JSON blob, but never the raw {statusCode:...,error:...} dump.
+  try {
+    const parsed = JSON.parse(responseText) as { message?: string; error?: string };
+    if (parsed.message) return `Upload failed: ${parsed.message}`;
+    if (parsed.error) return `Upload failed: ${parsed.error}`;
+  } catch { /* not JSON */ }
+  return `Upload failed (HTTP ${status}). Please retry.`;
+}
+
 // Phase weighting for the overall percentage. The upload phase owns the bulk of
 // the bar because that's the part that scales with file size; the rest are
 // effectively fixed checkpoints.
@@ -84,10 +123,10 @@ async function uploadWithProgress(
     };
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) resolve();
-      else reject(new Error(`Upload failed (HTTP ${xhr.status}): ${xhr.responseText || xhr.statusText}`));
+      else reject(new Error(friendlyUploadError(xhr.status, xhr.responseText, file.size)));
     };
-    xhr.onerror = () => reject(new Error("Network error during upload"));
-    xhr.onabort = () => reject(new Error("Upload aborted"));
+    xhr.onerror = () => reject(new Error("Network error — check your connection and retry."));
+    xhr.onabort = () => reject(new Error("Upload canceled."));
     xhr.send(file);
   });
 }
@@ -101,6 +140,9 @@ export const useUploadStore = create<UploadState>((set, get) => ({
 
   enqueue: ({ file, track, userId, existingVersionCount }) => {
     const id = newId();
+    // Fail fast on oversized files instead of letting the user wait through a
+    // decode + analyze + multi-second upload only to hit a 413 from Supabase.
+    const oversize = file.size > MAX_UPLOAD_BYTES;
     const job: UploadJob = {
       id,
       fileName: file.name,
@@ -108,16 +150,19 @@ export const useUploadStore = create<UploadState>((set, get) => ({
       trackId: track.id,
       trackTitle: track.title,
       albumId: track.album_id,
-      phase: "decoding",
-      message: PHASE_MESSAGES.decoding,
-      error: null,
+      phase: oversize ? "error" : "decoding",
+      message: oversize ? null : PHASE_MESSAGES.decoding,
+      error: oversize
+        ? `File is ${formatMB(file.size)} — over the ${formatMB(MAX_UPLOAD_BYTES)} upload limit on the free plan. Try a smaller export or upgrade Supabase.`
+        : null,
       startedAt: Date.now(),
-      finishedAt: null,
+      finishedAt: oversize ? Date.now() : null,
       progress: 0.02,
       version: null,
       trackPatch: null,
     };
     set((s) => ({ jobs: [job, ...s.jobs] }));
+    if (oversize) return id;
 
     const patch = (p: Partial<UploadJob>) =>
       set((s) => ({ jobs: s.jobs.map((j) => (j.id === id ? { ...j, ...p } : j)) }));
