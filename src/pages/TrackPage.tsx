@@ -12,7 +12,8 @@ import { useUploadStore, isActivePhase } from "../lib/uploads";
 import { resyncSharesForTrack } from "../lib/share";
 import ShareModal from "../components/ShareModal";
 import CommentFeed from "../components/CommentFeed";
-import { Download, Play, Share2, SlidersHorizontal, Sparkles, Trash2 } from "lucide-react";
+import CompareSheet from "../components/CompareSheet";
+import { Download, GitCompare, Play, Share2, SlidersHorizontal, Sparkles, Trash2 } from "lucide-react";
 
 export default function TrackPage() {
   const { trackId } = useParams<{ trackId: string }>();
@@ -32,6 +33,9 @@ export default function TrackPage() {
   const playerPositionSec = usePlayer((s) => s.positionSec);
   const playerSeekTo = usePlayer((s) => s.seekTo);
   const [shareVersion, setShareVersion] = useState<Version | null>(null);
+  // The "other" side of an A/B compare. When set, the sheet opens with this
+  // version and the track's current version as A.
+  const [compareVersion, setCompareVersion] = useState<Version | null>(null);
   const [redetecting, setRedetecting] = useState(false);
   const [redetectStatus, setRedetectStatus] = useState<string | null>(null);
   const [redetectErr, setRedetectErr] = useState<string | null>(null);
@@ -330,6 +334,17 @@ export default function TrackPage() {
                     <span className="sm:hidden">Use</span>
                   </button>
                 )}
+                {track.current_version_id && track.current_version_id !== v.id && (
+                  <button
+                    onClick={() => setCompareVersion(v)}
+                    className="text-xs text-muted hover:text-white shrink-0 flex items-center gap-1.5"
+                    aria-label={`Compare ${v.label} with the current version`}
+                    title="A/B compare against current"
+                  >
+                    <GitCompare size={14} />
+                    <span className="hidden sm:inline">Compare</span>
+                  </button>
+                )}
                 <button
                   onClick={() => setShareVersion(v)}
                   className="text-xs text-muted hover:text-white shrink-0 flex items-center gap-1.5"
@@ -393,6 +408,26 @@ export default function TrackPage() {
           onClose={() => setShareVersion(null)}
         />
       )}
+
+      {compareVersion && track && (() => {
+        // A is always the track's "Current" version; B is the row the user
+        // clicked Compare on. If somehow the current version vanished
+        // (deleted between renders) we silently close — the button is gated
+        // on track.current_version_id existing, but be defensive.
+        const currentV = versions.find((x) => x.id === track.current_version_id);
+        if (!currentV) {
+          setCompareVersion(null);
+          return null;
+        }
+        return (
+          <CompareSheet
+            trackTitle={track.title}
+            versionA={currentV}
+            versionB={compareVersion}
+            onClose={() => setCompareVersion(null)}
+          />
+        );
+      })()}
     </div>
   );
 }
