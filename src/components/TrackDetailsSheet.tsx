@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import type { CollabArtist, Track, Version, ShareLink } from "../lib/database.types";
 import { listShareLinks, shareUrlFor } from "../lib/share";
 import { supabase } from "../lib/supabase";
@@ -46,6 +47,7 @@ export default function TrackDetailsSheet({
   const play = usePlayer((s) => s.play);
   const setQueue = usePlayer((s) => s.setQueue);
   const currentQueue = usePlayer((s) => s.queue);
+  const navigate = useNavigate();
 
   const [view, setView] = useState<View>("main");
   const [links, setLinks] = useState<ShareLink[]>([]);
@@ -355,6 +357,11 @@ export default function TrackDetailsSheet({
 
               <div className="mx-4 mb-3 rounded-xl bg-panel2 border border-edge overflow-hidden divide-y divide-edge">
                 <ActionRow
+                  icon={<VersionsIcon />}
+                  label="All versions"
+                  onClick={() => { onClose(); navigate(`/track/${track.id}`); }}
+                />
+                <ActionRow
                   icon={<ReplaceIcon />}
                   label="Replace audio"
                   disabled={!onRequestReplaceAudio}
@@ -563,6 +570,17 @@ function ReplaceIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
       <path d="M3 5h7l-2-2M13 11H6l2 2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+// Three stacked "layers" — same visual metaphor as a stack of versions.
+function VersionsIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M8 2.5 2 5l6 2.5L14 5 8 2.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+      <path d="m2 8 6 2.5L14 8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="m2 11 6 2.5L14 11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
